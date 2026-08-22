@@ -8,6 +8,7 @@ local Knit = require(RS.Packages.Knit)
 local DataService = require(script.Parent.DataService)
 local PassService = require(script.Parent.PassService)
 local TrailService = require(script.Parent.TrailService)
+local BadgeService = require(script.Parent.BadgeService)
 local WinsConfig = require(RS.Shared.WinsConfig)
 local GamepassConfig = require(RS.Shared.GamepassConfig)
 
@@ -34,10 +35,13 @@ local function short(n: number): string
 	return s .. SUFFIXES[i]
 end
 
-local function grantWins(player: Player, amount: number)
+local function grantWins(player: Player, amount: number, index: number?)
 	local granted = math.floor(amount * PassService:WinsMultiplier(player) * TrailService:WinsMultiplier(player))
 	DataService:AddWins(player, granted)
 	WinsService.Client.Collected:Fire(player, granted)
+	if index == #WinsConfig.PadWins then
+		BadgeService:Award(player, BadgeService.Ids.ReachEndWorld1)
+	end
 
 	-- back to the start for the next run a live boost hold or gyro must not come along
 	local character = player.Character
@@ -54,7 +58,7 @@ local function grantWins(player: Player, amount: number)
 	end
 end
 
-local function onPadTouched(pad: BasePart, amount: number, hit: BasePart)
+local function onPadTouched(pad: BasePart, amount: number, hit: BasePart, index: number?)
 	local character = hit.Parent
 	local player = character and Players:GetPlayerFromCharacter(character)
 	if not (player and character) then return end
@@ -64,7 +68,7 @@ local function onPadTouched(pad: BasePart, amount: number, hit: BasePart)
 	if now - (lastTouch[player] or -math.huge) < TOUCH_COOLDOWN then return end
 	lastTouch[player] = now
 
-	grantWins(player, amount)
+	grantWins(player, amount, index)
 end
 
 function WinsService:KnitInit()
@@ -94,7 +98,7 @@ function WinsService:KnitInit()
 		end
 
 		pad.Touched:Connect(function(hit)
-			onPadTouched(pad, amount, hit)
+			onPadTouched(pad, amount, hit, index)
 		end)
 	end
 
@@ -112,7 +116,7 @@ function WinsService:KnitInit()
 		local now = os.clock()
 		if now - (lastTouch[player] or -math.huge) < TOUCH_COOLDOWN then return end
 		lastTouch[player] = now
-		grantWins(player, amount)
+		grantWins(player, amount, index)
 	end)
 
 	-- purple pads each island prompts its own Skip Stage product 4 price scaling

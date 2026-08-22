@@ -274,9 +274,13 @@ function UIController:KnitStart()
 	local function onClick(button: Instance?, fn: () -> ())
 		if button and button:IsA("GuiButton") then button.Activated:Connect(fn) end
 	end
-	local function wireFrame(button: Instance?, frame: GuiObject, background: Instance)
+	local function wireFrame(button: Instance?, frame: GuiObject, background: Instance, canOpen: (() -> boolean)?)
 		onClick(button, function()
-			if frame.Visible then closeFrame(frame) else openFrame(frame) end
+			if frame.Visible then
+				closeFrame(frame)
+			elseif not canOpen or canOpen() then
+				openFrame(frame)
+			end
 		end)
 		onClick(background:FindFirstChild("CloseButton"), function() closeFrame(frame) end)
 	end
@@ -288,7 +292,10 @@ function UIController:KnitStart()
 	local shopFrame = mainFrames:WaitForChild("ShopFrame")
 	local rebirthsFrame = mainFrames:WaitForChild("RebirthsFrame")
 	local trailsFrame = mainFrames:WaitForChild("TrailsFrame")
-	wireFrame(left:WaitForChild("ShopButton"), shopFrame, shopFrame:WaitForChild("ShopBackground"))
+	wireFrame(left:WaitForChild("ShopButton"), shopFrame, shopFrame:WaitForChild("ShopBackground"), function()
+		-- the walk-up Upgrades pad owns the screen while you stand on it
+		return player:GetAttribute("OnUpgradePad") ~= true
+	end)
 	wireFrame(left:WaitForChild("RebirthButton"), rebirthsFrame, rebirthsFrame:WaitForChild("RebirthsBackground"))
 	wireFrame(left:WaitForChild("TrailsButton"), trailsFrame, trailsFrame:WaitForChild("TrailsBackground"))
 

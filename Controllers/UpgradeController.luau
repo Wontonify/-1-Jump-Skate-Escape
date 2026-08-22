@@ -144,6 +144,7 @@ function UpgradeController:KnitStart()
 			local pad = stand and stand:FindFirstChild("Pad")
 			if not (hrp and hrp:IsA("BasePart") and pad and pad:IsA("Model")) then
 				wasNear = false
+				player:SetAttribute("OnUpgradePad", false)
 				continue
 			end
 			local cf, size = (pad :: Model):GetBoundingBox()
@@ -155,6 +156,7 @@ function UpgradeController:KnitStart()
 				close()
 			end
 			wasNear = near
+			player:SetAttribute("OnUpgradePad", near)
 		end
 	end)
 end

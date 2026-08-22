@@ -92,6 +92,11 @@ local function onShopTouched(entry, hit: BasePart)
 		ShopService.Client.Equipped:Fire(player, entry.Name)
 		return
 	end
+	if entry.Group then
+		-- membership only counts from the join-time check; joining now pays out next visit
+		ShopService.Client.Denied:Fire(player, "Join our Roblox Group to unlock this!")
+		return
+	end
 	if entry.GamepassId then
 		if PassService:OwnsPass(player, entry.GamepassId) then
 			DataService:UnlockBoard(player, entry.Name)
@@ -168,6 +173,21 @@ function ShopService:KnitInit()
 			end
 		end
 	end)
+
+	-- group boards unlock for members, checked once per session on join
+	local function grantGroupBoards(player: Player)
+		if not DataService:WaitForData(player) then return end
+		for _, entry in SkateboardConfig.Boards do
+			if not entry.Group or DataService:OwnsBoard(player, entry.Name) then continue end
+			local ok, isMember = pcall(player.IsInGroup, player, entry.Group)
+			if ok and isMember then
+				DataService:UnlockBoard(player, entry.Name)
+				ShopService.Client.Bought:Fire(player, entry.Name)
+			end
+		end
+	end
+	Players.PlayerAdded:Connect(function(p) task.spawn(grantGroupBoards, p) end)
+	for _, p in Players:GetPlayers() do task.spawn(grantGroupBoards, p) end
 
 	Players.PlayerRemoving:Connect(function(p) lastTouch[p] = nil end)
 end

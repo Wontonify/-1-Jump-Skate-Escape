@@ -14,7 +14,7 @@ local ShopController = Knit.CreateController({
 	Name = "ShopController",
 })
 
-local billboards: { { gui: BillboardGui, price: TextLabel, xp: TextLabel, entry: any } } = {}
+local billboards: { { gui: BillboardGui, price: TextLabel?, xp: TextLabel, entry: any } } = {}
 
 -- rewrites the label when wrong, and when the engine laid out zero glyphs for a visible label
 local function assertText(label: TextLabel, text: string)
@@ -80,13 +80,14 @@ end
 
 local function refreshAll()
 	for _, b in billboards do
-		assertText(b.price, priceText(b.entry))
+		if b.price then assertText(b.price, priceText(b.entry)) end
 		assertText(b.xp, "+" .. (b.entry.XP or 0) .. " XP")
 	end
 end
 
 function ShopController:KnitStart()
 	local template = RS:WaitForChild("Assets"):WaitForChild("UI"):WaitForChild("Shop")
+	local groupTemplate = RS.Assets.UI:WaitForChild("Group Reward")
 	local shop = workspace:WaitForChild("Shop")
 	-- a plain Folder gets wiped from PlayerGui on respawn
 	local holder = Instance.new("ScreenGui")
@@ -95,10 +96,11 @@ function ShopController:KnitStart()
 	holder.Parent = player:WaitForChild("PlayerGui")
 
 	for _, entry in SkateboardConfig.Boards do
-		local gui = template:Clone() :: BillboardGui
+		-- the group board keeps its own authored billboard, which has no price line
+		local gui = (if entry.Group then groupTemplate else template):Clone() :: BillboardGui
 		gui.Name = entry.Asset
 		local xpLabel = gui:WaitForChild("Background"):WaitForChild("PowerLoader") :: TextLabel
-		local price = gui:WaitForChild("PriceLoader") :: TextLabel
+		local price = if entry.Group then nil else gui:WaitForChild("PriceLoader") :: TextLabel
 		xpLabel.Text = "+" .. (entry.XP or 0) .. " XP"
 		-- adorn right away when the stand is already streamed in
 		local model = shop:FindFirstChild(entry.Asset)
@@ -193,9 +195,12 @@ function ShopController:KnitStart()
 						local xpText = b.xp.Text
 						b.xp.Text = ""
 						b.xp.Text = xpText
-						local priceValue = b.price.Text
-						b.price.Text = ""
-						b.price.Text = priceValue
+						local price = b.price
+						if price then
+							local priceValue = price.Text
+							price.Text = ""
+							price.Text = priceValue
+						end
 					end
 				end
 			end

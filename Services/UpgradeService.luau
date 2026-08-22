@@ -6,6 +6,7 @@ local Knit = require(RS.Packages.Knit)
 local DataService = require(script.Parent.DataService)
 local PassService = require(script.Parent.PassService)
 local XPService = require(script.Parent.XPService)
+local BadgeService = require(script.Parent.BadgeService)
 local Upgrades = require(RS.Shared.Upgrades)
 local GamepassConfig = require(RS.Shared.GamepassConfig)
 
@@ -41,6 +42,7 @@ function UpgradeService:BuySpeed(player: Player)
 	DataService:AddWins(player, -cost)
 	DataService:SetSpeedUpgrade(player, level + 1)
 	publish(player) -- TrailService watches the attribute and re-applies walkspeed
+	BadgeService:Award(player, BadgeService.Ids.PurchaseUpgrade)
 	self.Client.Result:Fire(player, true, "+" .. Upgrades.SpeedPerLevel .. " Speed!")
 end
 
@@ -61,6 +63,7 @@ function UpgradeService:BuyJump(player: Player)
 	DataService:AddExtraJumps(player, 1)
 	PassService:Refresh(player) -- republishes BonusJumps so the pool grows live
 	publish(player)
+	BadgeService:Award(player, BadgeService.Ids.PurchaseUpgrade)
 	self.Client.Result:Fire(player, true, "+1 Jump!")
 end
 
@@ -87,6 +90,7 @@ function UpgradeService:KnitInit()
 		if not d or (d.SpeedUpgrade or 0) >= Upgrades.SpeedMax then return false end
 		DataService:SetSpeedUpgrade(player, (d.SpeedUpgrade or 0) + 1)
 		publish(player)
+		BadgeService:Award(player, BadgeService.Ids.PurchaseUpgrade)
 		return true
 	end)
 	registerSkips(Upgrades.JumpProducts, function(player)
@@ -95,6 +99,7 @@ function UpgradeService:KnitInit()
 		DataService:AddExtraJumps(player, 1)
 		PassService:Refresh(player)
 		publish(player)
+		BadgeService:Award(player, BadgeService.Ids.PurchaseUpgrade)
 		return true
 	end)
 

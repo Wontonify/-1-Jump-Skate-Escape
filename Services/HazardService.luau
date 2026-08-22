@@ -27,10 +27,12 @@ local FLOOD_FROM_Z = 140 -- the lava zone floor and every zone past it floods
 local FLOOD_CROSS = 155 -- risen walls slim down to the corridor between the side walls (156 gap)
 local EDGE_TRIM = 0.4   -- risen neighbours pull back from their shared face (stops the z-fighting)
 local ZAP_SOUND = 86261914368076
+local SHOCK_SOUND = 119225525936197
 
 local structures: { { model: Model, base: CFrame, drop: number } } = {}
 local structTops: { { z: number, top: number } } = {} -- standing bbox tops, for the flood scaling
-local floods: { { part: BasePart, bottom: number, flatY: number, crossFlat: number, courseFlat: number, crossIsX: boolean, target: number, riseDur: number, fallDur: number } } = {}
+type FloodPiece = { part: BasePart, xMin: number, xMax: number, zMin: number, zMax: number }
+local floods: { { part: BasePart, bottom: number, flatY: number, crossFlat: number, centerX: number, flatMinZ: number, flatMaxZ: number, target: number, riseDur: number, fallDur: number, pieces: { FloodPiece } } } = {}
 
 local function setStructures(alpha: number) -- 0 up, 1 buried
 	for _, s in structures do
@@ -38,14 +40,25 @@ local function setStructures(alpha: number) -- 0 up, 1 buried
 	end
 end
 
+-- the sheet is tiled by box pieces that leave the platform towers carved out; each piece
+-- is its static box clipped to the animated outer bounds, so pieces grow with the flood
+-- while the carved holes never close over a platform
 local function setFlood(f: typeof(floods[1]), alpha: number) -- 0 flat sheet, 1 full wall
 	local h = f.flatY + (f.target - f.flatY) * alpha
 	local cross = f.crossFlat + (math.min(FLOOD_CROSS, f.crossFlat) - f.crossFlat) * alpha
-	local course = f.courseFlat - EDGE_TRIM * alpha
-	local sx = if f.crossIsX then cross else course
-	local sz = if f.crossIsX then course else cross
-	f.part.Size = Vector3.new(sx, h, sz)
-	f.part.Position = Vector3.new(f.part.Position.X, f.bottom + h / 2, f.part.Position.Z)
+	local xLo = f.centerX - cross / 2
+	local xHi = f.centerX + cross / 2
+	local zLo = f.flatMinZ + (EDGE_TRIM / 2) * alpha
+	local zHi = f.flatMaxZ - (EDGE_TRIM / 2) * alpha
+	local y = f.bottom + h / 2
+	for _, piece in f.pieces do
+		local pxLo = math.max(piece.xMin, xLo)
+		local pxHi = math.min(piece.xMax, xHi)
+		local pzLo = math.max(piece.zMin, zLo)
+		local pzHi = math.min(piece.zMax, zHi)
+		piece.part.Size = Vector3.new(math.max(pxHi - pxLo, 0.05), h, math.max(pzHi - pzLo, 0.05))
+		piece.part.CFrame = CFrame.new((pxLo + pxHi) / 2, y, (pzLo + pzHi) / 2)
+	end
 end
 
 local function ease(t: number): number
@@ -96,16 +109,19 @@ function HazardService:KnitInit()
 			if f:IsA("BasePart") and f.Material == Enum.Material.Neon and f.Position.Z >= FLOOD_FROM_Z then
 				-- cross-course = world X find which local size axis that is
 				local crossIsX = math.abs(f.CFrame.RightVector.X) > 0.5
+				local courseFlat = if crossIsX then f.Size.Z else f.Size.X
 				table.insert(floods, {
 					part = f,
 					bottom = f.Position.Y - f.Size.Y / 2,
 					flatY = f.Size.Y,
 					crossFlat = if crossIsX then f.Size.X else f.Size.Z,
-					courseFlat = if crossIsX then f.Size.Z else f.Size.X,
-					crossIsX = crossIsX,
+					centerX = f.Position.X,
+					flatMinZ = f.Position.Z - courseFlat / 2,
+					flatMaxZ = f.Position.Z + courseFlat / 2,
 					target = FLOOD_HEIGHT,
 					riseDur = 8,
 					fallDur = 5,
+					pieces = {},
 				})
 			end
 		end
@@ -122,8 +138,8 @@ function HazardService:KnitInit()
 		end
 	end
 	for _, f in floods do
-		local zMin = f.part.Position.Z - f.courseFlat / 2
-		local zMax = f.part.Position.Z + f.courseFlat / 2
+		local zMin = f.flatMinZ
+		local zMax = f.flatMaxZ
 		local target = FLOOD_HEIGHT
 		for _, s in structTops do
 			if s.z >= zMin and s.z <= zMax then
@@ -138,6 +154,60 @@ function HazardService:KnitInit()
 		f.target = math.max(target, f.flatY)
 		f.riseDur = math.clamp(f.target / 6, 8, 20)
 		f.fallDur = math.clamp(f.target / 25, 5, 10)
+	end
+
+	-- carve every platform tower's footprint out of each sheet, then tile what remains:
+	-- full-width slabs between towers, side strips beside them -- the lava sits flush
+	-- against a platform's walls but is never on top of it
+	local holesByFlood: { [number]: { { zMin: number, zMax: number, xMin: number, xMax: number } } } = {}
+	for _, d in Workspace.Map:GetDescendants() do
+		if not (d:IsA("BasePart") and d.CanCollide) then continue end
+		local cf = d.CFrame
+		local ws = cf.RightVector:Abs() * d.Size.X + cf.UpVector:Abs() * d.Size.Y + cf.LookVector:Abs() * d.Size.Z
+		if ws.X < 40 or ws.Y < 15 or ws.Z < 40 then continue end
+		for i, f in floods do
+			if math.abs(d.Position.X - f.centerX) > 22 then continue end -- only the corridor-centred towers
+			if d.Position.Y - ws.Y / 2 > f.bottom + f.target or d.Position.Y + ws.Y / 2 < f.bottom then continue end
+			local zMin = math.max(d.Position.Z - ws.Z / 2, f.flatMinZ)
+			local zMax = math.min(d.Position.Z + ws.Z / 2, f.flatMaxZ)
+			if zMax - zMin < 0.1 then continue end
+			local list = holesByFlood[i]
+			if not list then
+				list = {}
+				holesByFlood[i] = list
+			end
+			table.insert(list, { zMin = zMin, zMax = zMax, xMin = d.Position.X - ws.X / 2, xMax = d.Position.X + ws.X / 2 })
+		end
+	end
+	local BIG = 1e6
+	for i, f in floods do
+		local holes = holesByFlood[i] or {}
+		table.sort(holes, function(a, b) return a.zMin < b.zMin end)
+		local boxes: { { xMin: number, xMax: number, zMin: number, zMax: number } } = {}
+		local cursor = f.flatMinZ
+		for _, hole in holes do
+			if hole.zMin > cursor + 0.05 then
+				table.insert(boxes, { xMin = -BIG, xMax = BIG, zMin = cursor, zMax = hole.zMin })
+			end
+			local a, b = math.max(hole.zMin, cursor), hole.zMax
+			if b > a + 0.05 then
+				table.insert(boxes, { xMin = -BIG, xMax = hole.xMin, zMin = a, zMax = b })
+				table.insert(boxes, { xMin = hole.xMax, xMax = BIG, zMin = a, zMax = b })
+			end
+			cursor = math.max(cursor, hole.zMax)
+		end
+		if cursor < f.flatMaxZ - 0.05 then
+			table.insert(boxes, { xMin = -BIG, xMax = BIG, zMin = cursor, zMax = f.flatMaxZ })
+		end
+		if #boxes == 0 then
+			table.insert(boxes, { xMin = -BIG, xMax = BIG, zMin = f.flatMinZ, zMax = f.flatMaxZ })
+		end
+		for j, box in boxes do
+			local part = if j == 1 then f.part else f.part:Clone()
+			if j > 1 then part.Parent = f.part.Parent end
+			table.insert(f.pieces, { part = part, xMin = box.xMin, xMax = box.xMax, zMin = box.zMin, zMax = box.zMax })
+		end
+		setFlood(f, 0)
 	end
 
 	self:_initSweeps()
@@ -163,8 +233,7 @@ function HazardService:KnitInit()
 	end)
 end
 
--- sweeping lasers Workspace.Lasers models
--- between the two ramps position derives from the server clock so clients render the same spot
+-- sweeping lasers Workspace.Lasers models between the two ramps position derives from the server clock so clients render the same spot
 function HazardService:_initSweeps()
 	local folder = Workspace:FindFirstChild("Lasers")
 	if not folder then return end
@@ -248,6 +317,7 @@ function HazardService:_initClouds()
 				if math.abs(p.X) > half.X or math.abs(p.Y) > half.Y or math.abs(p.Z) > half.Z then continue end
 				if os.clock() - (lastKill[player] or -math.huge) < 1 then continue end
 				lastKill[player] = os.clock()
+				HazardService.Shock(character) -- like the laser Zap, fires even when a revive saves you
 				if not ReviveService:TryInstantRevive(player) then
 					humanoid.Health = 0
 				end
@@ -268,6 +338,35 @@ function HazardService.Zap(character: Model)
 	s.Parent = hrp
 	s:Play()
 	Debris:AddItem(s, 3)
+end
+
+-- magnet snap + a spark burst over the body of whoever a cloud catches
+function HazardService.Shock(character: Model?)
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if not (character and hrp and hrp:IsA("BasePart")) then return end
+	local s = Instance.new("Sound")
+	s.SoundId = "rbxassetid://" .. SHOCK_SOUND
+	s.Volume = 1
+	s.RollOffMinDistance = 15
+	s.RollOffMaxDistance = 120
+	s.Parent = hrp
+	s:Play()
+	Debris:AddItem(s, 4)
+	for _, d in character:GetChildren() do
+		if not d:IsA("BasePart") then continue end
+		local e = Instance.new("ParticleEmitter")
+		e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		e.Color = ColorSequence.new(Color3.fromRGB(150, 220, 255), Color3.fromRGB(70, 130, 255))
+		e.LightEmission = 1
+		e.Size = NumberSequence.new(0.5)
+		e.Lifetime = NumberRange.new(0.15, 0.4)
+		e.Speed = NumberRange.new(5, 12)
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Rate = 0
+		e.Parent = d
+		e:Emit(10)
+		Debris:AddItem(e, 2)
+	end
 end
 
 return HazardService

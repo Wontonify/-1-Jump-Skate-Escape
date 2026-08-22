@@ -110,16 +110,14 @@ local STEPS = {
 		end,
 	},
 	{
+		-- stays silent until the wins are banked, then points straight at the stand
 		text = function()
-			local cost = Upgrades.JumpCosts[1] or 0
-			if wins() < cost then
-				return "Do more runs \u{2014} " .. cost .. " Wins buys +1 Jump!"
-			end
+			if wins() < (Upgrades.JumpCosts[1] or 0) then return nil end
 			return "Buy +1 Jump at the Upgrades stand!"
 		end,
 		done = function() return jumpUpgrades() >= 1 end,
 		target = function()
-			if wins() < (Upgrades.JumpCosts[1] or 0) then return winPadPos() end
+			if wins() < (Upgrades.JumpCosts[1] or 0) then return nil end
 			return pivotOf(findPath("Map", "Upgrade"))
 		end,
 	},
@@ -311,3 +309,7 @@ function TutorialController:KnitStart()
 end
 
 return TutorialController
+
+
+
+

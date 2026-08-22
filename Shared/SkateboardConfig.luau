@@ -13,6 +13,7 @@ SkateboardConfig.Boards = {
 	{ Name = "Water", Asset = "Water Skate 2", XP = 20, Robux = 45, GamepassId = 1940239118 },
 	{ Name = "Invisible", Asset = "Glass Skate", XP = 25, Robux = 45, GamepassId = 1940629137 },
 	{ Name = "Dark", Asset = "Void Skate", XP = 45, Robux = 360, GamepassId = 1940353090 },
+	{ Name = "Boned", Asset = "Boned Skate", XP = 8, Group = 521202898 },
 }
 
 SkateboardConfig.DefaultBoard = "Green" -- free board
