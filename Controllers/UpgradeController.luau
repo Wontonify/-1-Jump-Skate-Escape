@@ -8,6 +8,7 @@ local Knit = require(RS.Packages.Knit)
 local UtilController = require(script.Parent.UtilController)
 local UIController = require(script.Parent.UIController)
 local Upgrades = require(RS:WaitForChild("Shared"):WaitForChild("Upgrades"))
+local Worlds = require(RS:WaitForChild("Shared"):WaitForChild("Worlds"))
 
 local player = Players.LocalPlayer
 
@@ -132,24 +133,28 @@ function UpgradeController:KnitStart()
 		end
 	end)
 
-	-- walk-up open on the lobby Upgrade stand's pad walking away closes it again
+	-- walk-up open on either world's Upgrade stand pad walking away closes it again
 	task.spawn(function()
 		local wasNear = false
 		while true do
 			task.wait(0.3)
 			local character = player.Character
 			local hrp = character and character:FindFirstChild("HumanoidRootPart")
-			local map = Workspace:FindFirstChild("Map")
-			local stand = map and map:FindFirstChild("Upgrade")
-			local pad = stand and stand:FindFirstChild("Pad")
-			if not (hrp and hrp:IsA("BasePart") and pad and pad:IsA("Model")) then
-				wasNear = false
-				player:SetAttribute("OnUpgradePad", false)
-				continue
+			local near = false
+			if hrp and hrp:IsA("BasePart") then
+				for _, worldFolder in Worlds.List() do
+					local map = worldFolder:FindFirstChild("Map")
+					local stand = map and map:FindFirstChild("Upgrade")
+					local pad = stand and stand:FindFirstChild("Pad")
+					if not (pad and pad:IsA("Model") and pad:FindFirstChildWhichIsA("BasePart", true)) then continue end
+					local cf, size = (pad :: Model):GetBoundingBox()
+					local p = cf:PointToObjectSpace(hrp.Position)
+					if math.abs(p.X) <= size.X / 2 + 2 and math.abs(p.Z) <= size.Z / 2 + 2 and math.abs(p.Y) <= 8 then
+						near = true
+						break
+					end
+				end
 			end
-			local cf, size = (pad :: Model):GetBoundingBox()
-			local p = cf:PointToObjectSpace(hrp.Position)
-			local near = math.abs(p.X) <= size.X / 2 + 2 and math.abs(p.Z) <= size.Z / 2 + 2 and math.abs(p.Y) <= 8
 			if near and not wasNear then
 				open()
 			elseif not near and wasNear and frame.Visible then
@@ -161,5 +166,4 @@ function UpgradeController:KnitStart()
 	end)
 end
 
-return UpgradeController
-
+return UpgradeController 

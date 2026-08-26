@@ -8,6 +8,7 @@ local XPService = require(script.Parent.XPService)
 local PassService = require(script.Parent.PassService)
 local Rebirths = require(RS.Shared.Rebirths)
 local GamepassConfig = require(RS.Shared.GamepassConfig)
+local Worlds = require(RS.Shared.Worlds)
 
 local RebirthService = Knit.CreateService({
 	Name = "RebirthService",
@@ -31,9 +32,8 @@ function RebirthService:DoRebirth(player: Player, force: boolean?)
 	XPService:RefreshXPPerStep(player) -- +0.5x multi
 
 	local char = player.Character
-	local sp = Workspace:FindFirstChild("SpawnLocation")
-	if char and sp and sp:IsA("BasePart") then
-		char:PivotTo(sp.CFrame + Vector3.new(0, 4, 0))
+	if char then
+		char:PivotTo(Worlds.SpawnCFrame(Worlds.PlayerWorld(player)))
 	end
 end
 

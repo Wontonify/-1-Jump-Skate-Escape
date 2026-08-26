@@ -10,6 +10,7 @@ local DataService = require(script.Parent.DataService)
 local PassService = require(script.Parent.PassService)
 local XPService = require(script.Parent.XPService)
 local TrainConfig = require(RS.Shared.TrainConfig)
+local Worlds = require(RS.Shared.Worlds)
 
 local TrainService = Knit.CreateService({
 	Name = "TrainService",
@@ -133,9 +134,13 @@ function TrainService:KnitInit()
 		if p.Character then hookCharacter(p, p.Character) end
 	end
 
-	local folder = Workspace:WaitForChild("Train", 10)
-	if not folder then
-		warn("[TrainService] workspace.Train is missing")
+	local folders: { Folder } = {}
+	for _, worldFolder in Worlds.List() do
+		local f = worldFolder:FindFirstChild("Train")
+		if f then table.insert(folders, f) end
+	end
+	if #folders == 0 then
+		warn("[TrainService] no Train folder in any world")
 		return
 	end
 
@@ -151,54 +156,57 @@ function TrainService:KnitInit()
 		end
 	end
 
-	for _, pad in folder:GetChildren() do
-		if not pad:IsA("BasePart") then continue end
-		local ground = TrainConfig.Grounds[pad.Name]
-		if not ground then
-			warn("[TrainService] no Grounds entry for " .. pad.Name)
-			continue
-		end
-		decorate(pad, ground)
-
-		-- training starts from a held prompt, not from stepping onto the pad
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.Name = "TrainPrompt"
-		prompt.ActionText = "Train"
-		prompt.ObjectText = pad.Name
-		prompt.HoldDuration = 0.5
-		prompt.RequiresLineOfSight = false
-		prompt.MaxActivationDistance = 14
-		prompt.Parent = pad
-		prompt.Triggered:Connect(function(player)
-			if not canUse(player, pad.Name, ground) then
-				if ground.GamepassId then
-					MarketplaceService:PromptGamePassPurchase(player, ground.GamepassId)
-				elseif not ground.Robux then
-					-- interacting with a locked rebirth pad bounces you home, same as walking on
-					local character = player.Character
-					local sp = Workspace:FindFirstChild("SpawnLocation")
-					if character and sp and sp:IsA("BasePart") then
-						character:PivotTo(sp.CFrame + Vector3.new(0, 4, 0))
-					end
-					TrainService.Client.Denied:Fire(player, "You need to unlock Rebirth " .. (ground.Rebirths or 0))
-				end
-				return
+	for _, folder in folders do
+		for _, pad in folder:GetChildren() do
+			if not pad:IsA("BasePart") then continue end
+			local ground = TrainConfig.Grounds[pad.Name]
+			if not ground then
+				warn("[TrainService] no Grounds entry for " .. pad.Name)
+				continue
 			end
-			if training[player] == pad then return end -- re-trigger must not refresh the grace
-			training[player] = pad
-			graceUntil[player] = os.clock() + 1.5
-			if player.Character then setGroup(player.Character, "Trainee") end
-			TrainService.Client.TrainingStarted:Fire(player, pad.Name)
-		end)
+			decorate(pad, ground)
+
+			-- training starts from a held prompt, not from stepping onto the pad
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.Name = "TrainPrompt"
+			prompt.ActionText = "Train"
+			prompt.ObjectText = pad.Name
+			prompt.HoldDuration = 0.5
+			prompt.RequiresLineOfSight = false
+			prompt.MaxActivationDistance = 14
+			prompt.Parent = pad
+			prompt.Triggered:Connect(function(player)
+				if not canUse(player, pad.Name, ground) then
+					if ground.GamepassId then
+						MarketplaceService:PromptGamePassPurchase(player, ground.GamepassId)
+					elseif not ground.Robux then
+						-- interacting with a locked rebirth pad bounces you home, same as walking on
+						local character = player.Character
+						if character then
+							character:PivotTo(Worlds.SpawnCFrame(Worlds.PlayerWorld(player)))
+						end
+						TrainService.Client.Denied:Fire(player, "You need to unlock Rebirth " .. (ground.Rebirths or 0))
+					end
+					return
+				end
+				if training[player] == pad then return end -- re-trigger must not refresh the grace
+				training[player] = pad
+				graceUntil[player] = os.clock() + 1.5
+				if player.Character then setGroup(player.Character, "Trainee") end
+				TrainService.Client.TrainingStarted:Fire(player, pad.Name)
+			end)
+		end
 	end
 
 	local function padUnder(position: Vector3): BasePart?
-		for _, pad in folder:GetChildren() do
-			if not pad:IsA("BasePart") then continue end
-			local p = pad.CFrame:PointToObjectSpace(position)
-			if math.abs(p.X) <= pad.Size.X / 2 and math.abs(p.Z) <= pad.Size.Z / 2
-				and p.Y >= -pad.Size.Y / 2 and p.Y <= pad.Size.Y / 2 + 6 then
-				return pad
+		for _, folder in folders do
+			for _, pad in folder:GetChildren() do
+				if not pad:IsA("BasePart") then continue end
+				local p = pad.CFrame:PointToObjectSpace(position)
+				if math.abs(p.X) <= pad.Size.X / 2 and math.abs(p.Z) <= pad.Size.Z / 2
+					and p.Y >= -pad.Size.Y / 2 and p.Y <= pad.Size.Y / 2 + 6 then
+					return pad
+				end
 			end
 		end
 		return nil
@@ -295,7 +303,3 @@ function TrainService:KnitInit()
 end
 
 return TrainService
-
-
-
-

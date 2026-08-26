@@ -7,6 +7,7 @@ local Workspace = game:GetService("Workspace")
 
 local Knit = require(RS.Packages.Knit)
 local ReviveService = require(script.Parent.ReviveService)
+local Worlds = require(RS.Shared.Worlds)
 
 local HazardService = Knit.CreateService({
 	Name = "HazardService",
@@ -40,9 +41,6 @@ local function setStructures(alpha: number) -- 0 up, 1 buried
 	end
 end
 
--- the sheet is tiled by box pieces that leave the platform towers carved out; each piece
--- is its static box clipped to the animated outer bounds, so pieces grow with the flood
--- while the carved holes never close over a platform
 local function setFlood(f: typeof(floods[1]), alpha: number) -- 0 flat sheet, 1 full wall
 	local h = f.flatY + (f.target - f.flatY) * alpha
 	local cross = f.crossFlat + (math.min(FLOOD_CROSS, f.crossFlat) - f.crossFlat) * alpha
@@ -93,121 +91,128 @@ local function animate(duration: number, fn: (alpha: number) -> ())
 end
 
 function HazardService:KnitInit()
-	local platforms = Workspace:FindFirstChild("Platforms")
-	if platforms then
-		for _, m in platforms:GetChildren() do
-			if m:IsA("Model") then
-				local cf, size = m:GetBoundingBox()
-				table.insert(structures, { model = m, base = m:GetPivot(), drop = size.Y + 6 })
-				table.insert(structTops, { z = cf.Z, top = cf.Y + size.Y / 2 })
+	-- every world contributes its own structures and flood zones; zone matching stays
+	-- world-local because both worlds reuse the same Z layout
+	for _, worldFolder in Worlds.List() do
+		local structTops: { { z: number, top: number } } = {}
+		local wFloods = {}
+		local platforms = worldFolder:FindFirstChild("Platforms")
+		if platforms then
+			for _, m in platforms:GetChildren() do
+				if m:IsA("Model") then
+					local cf, size = m:GetBoundingBox()
+					table.insert(structures, { model = m, base = m:GetPivot(), drop = size.Y + 6 })
+					table.insert(structTops, { z = cf.Z, top = cf.Y + size.Y / 2 })
+				end
 			end
 		end
-	end
-	local floorFolder = Workspace:FindFirstChild("Floor")
-	if floorFolder then
-		for _, f in floorFolder:GetChildren() do
-			if f:IsA("BasePart") and f.Material == Enum.Material.Neon and f.Position.Z >= FLOOD_FROM_Z then
-				-- cross-course = world X find which local size axis that is
-				local crossIsX = math.abs(f.CFrame.RightVector.X) > 0.5
-				local courseFlat = if crossIsX then f.Size.Z else f.Size.X
-				table.insert(floods, {
-					part = f,
-					bottom = f.Position.Y - f.Size.Y / 2,
-					flatY = f.Size.Y,
-					crossFlat = if crossIsX then f.Size.X else f.Size.Z,
-					centerX = f.Position.X,
-					flatMinZ = f.Position.Z - courseFlat / 2,
-					flatMaxZ = f.Position.Z + courseFlat / 2,
-					target = FLOOD_HEIGHT,
-					riseDur = 8,
-					fallDur = 5,
-					pieces = {},
-				})
+		local floorFolder = worldFolder:FindFirstChild("Floor")
+		if floorFolder then
+			for _, f in floorFolder:GetChildren() do
+				if f:IsA("BasePart") and f.Material == Enum.Material.Neon and f.Position.Z >= FLOOD_FROM_Z then
+					-- cross-course = world X find which local size axis that is
+					local crossIsX = math.abs(f.CFrame.RightVector.X) > 0.5
+					local courseFlat = if crossIsX then f.Size.Z else f.Size.X
+					local entry = {
+						part = f,
+						bottom = f.Position.Y - f.Size.Y / 2,
+						flatY = f.Size.Y,
+						crossFlat = if crossIsX then f.Size.X else f.Size.Z,
+						centerX = f.Position.X,
+						flatMinZ = f.Position.Z - courseFlat / 2,
+						flatMaxZ = f.Position.Z + courseFlat / 2,
+						target = FLOOD_HEIGHT,
+						riseDur = 8,
+						fallDur = 5,
+						pieces = {},
+					}
+					table.insert(floods, entry)
+					table.insert(wFloods, entry)
+				end
 			end
 		end
-	end
-	-- each zone's flood grows tall enough to swallow its tallest platform whole, but
-	-- never the ramp platform the Wins Return pad and its floor stay above the surface
-	local pads: { { z: number, floorTop: number } } = {}
-	local padFolder = Workspace:FindFirstChild("WinsPads")
-	if padFolder then
-		for _, p in padFolder:GetChildren() do
-			if p:IsA("BasePart") then
-				table.insert(pads, { z = p.Position.Z, floorTop = p.Position.Y - p.Size.Y / 2 })
+		-- each zone's flood grows tall enough to swallow its tallest platform whole, but
+		-- never the ramp platform the Wins Return pad and its floor stay above the surface
+		local pads: { { z: number, floorTop: number } } = {}
+		local padFolder = worldFolder:FindFirstChild("WinsPads")
+		if padFolder then
+			for _, p in padFolder:GetChildren() do
+				if p:IsA("BasePart") then
+					table.insert(pads, { z = p.Position.Z, floorTop = p.Position.Y - p.Size.Y / 2 })
+				end
 			end
 		end
-	end
-	for _, f in floods do
-		local zMin = f.flatMinZ
-		local zMax = f.flatMaxZ
-		local target = FLOOD_HEIGHT
-		for _, s in structTops do
-			if s.z >= zMin and s.z <= zMax then
-				target = math.max(target, s.top - f.bottom + FLOOD_MARGIN)
+		for _, f in wFloods do
+			local zMin = f.flatMinZ
+			local zMax = f.flatMaxZ
+			local target = FLOOD_HEIGHT
+			for _, s in structTops do
+				if s.z >= zMin and s.z <= zMax then
+					target = math.max(target, s.top - f.bottom + FLOOD_MARGIN)
+				end
 			end
-		end
-		for _, p in pads do
-			if p.z >= zMin and p.z <= zMax then
-				target = math.min(target, p.floorTop - PAD_CLEARANCE - f.bottom)
+			for _, p in pads do
+				if p.z >= zMin and p.z <= zMax then
+					target = math.min(target, p.floorTop - PAD_CLEARANCE - f.bottom)
+				end
 			end
+			f.target = math.max(target, f.flatY)
+			f.riseDur = math.clamp(f.target / 6, 8, 20)
+			f.fallDur = math.clamp(f.target / 25, 5, 10)
 		end
-		f.target = math.max(target, f.flatY)
-		f.riseDur = math.clamp(f.target / 6, 8, 20)
-		f.fallDur = math.clamp(f.target / 25, 5, 10)
-	end
 
-	-- carve every platform tower's footprint out of each sheet, then tile what remains:
-	-- full-width slabs between towers, side strips beside them -- the lava sits flush
-	-- against a platform's walls but is never on top of it
-	local holesByFlood: { [number]: { { zMin: number, zMax: number, xMin: number, xMax: number } } } = {}
-	for _, d in Workspace.Map:GetDescendants() do
-		if not (d:IsA("BasePart") and d.CanCollide) then continue end
-		local cf = d.CFrame
-		local ws = cf.RightVector:Abs() * d.Size.X + cf.UpVector:Abs() * d.Size.Y + cf.LookVector:Abs() * d.Size.Z
-		if ws.X < 40 or ws.Y < 15 or ws.Z < 40 then continue end
-		for i, f in floods do
-			if math.abs(d.Position.X - f.centerX) > 22 then continue end -- only the corridor-centred towers
-			if d.Position.Y - ws.Y / 2 > f.bottom + f.target or d.Position.Y + ws.Y / 2 < f.bottom then continue end
-			local zMin = math.max(d.Position.Z - ws.Z / 2, f.flatMinZ)
-			local zMax = math.min(d.Position.Z + ws.Z / 2, f.flatMaxZ)
-			if zMax - zMin < 0.1 then continue end
-			local list = holesByFlood[i]
-			if not list then
-				list = {}
-				holesByFlood[i] = list
+		--carve platform out of floor
+		local map = worldFolder:FindFirstChild("Map")
+		local holesByFlood: { [number]: { { zMin: number, zMax: number, xMin: number, xMax: number } } } = {}
+		for _, d in (if map then map:GetDescendants() else {}) do
+			if not (d:IsA("BasePart") and d.CanCollide) then continue end
+			local cf = d.CFrame
+			local ws = cf.RightVector:Abs() * d.Size.X + cf.UpVector:Abs() * d.Size.Y + cf.LookVector:Abs() * d.Size.Z
+			if ws.X < 40 or ws.Y < 15 or ws.Z < 40 then continue end
+			for i, f in wFloods do
+				if math.abs(d.Position.X - f.centerX) > 22 then continue end -- only the corridor-centred towers
+				if d.Position.Y - ws.Y / 2 > f.bottom + f.target or d.Position.Y + ws.Y / 2 < f.bottom then continue end
+				local zMin = math.max(d.Position.Z - ws.Z / 2, f.flatMinZ)
+				local zMax = math.min(d.Position.Z + ws.Z / 2, f.flatMaxZ)
+				if zMax - zMin < 0.1 then continue end
+				local list = holesByFlood[i]
+				if not list then
+					list = {}
+					holesByFlood[i] = list
+				end
+				table.insert(list, { zMin = zMin, zMax = zMax, xMin = d.Position.X - ws.X / 2, xMax = d.Position.X + ws.X / 2 })
 			end
-			table.insert(list, { zMin = zMin, zMax = zMax, xMin = d.Position.X - ws.X / 2, xMax = d.Position.X + ws.X / 2 })
 		end
-	end
-	local BIG = 1e6
-	for i, f in floods do
-		local holes = holesByFlood[i] or {}
-		table.sort(holes, function(a, b) return a.zMin < b.zMin end)
-		local boxes: { { xMin: number, xMax: number, zMin: number, zMax: number } } = {}
-		local cursor = f.flatMinZ
-		for _, hole in holes do
-			if hole.zMin > cursor + 0.05 then
-				table.insert(boxes, { xMin = -BIG, xMax = BIG, zMin = cursor, zMax = hole.zMin })
+		local BIG = 1e6
+		for i, f in wFloods do
+			local holes = holesByFlood[i] or {}
+			table.sort(holes, function(a, b) return a.zMin < b.zMin end)
+			local boxes: { { xMin: number, xMax: number, zMin: number, zMax: number } } = {}
+			local cursor = f.flatMinZ
+			for _, hole in holes do
+				if hole.zMin > cursor + 0.05 then
+					table.insert(boxes, { xMin = -BIG, xMax = BIG, zMin = cursor, zMax = hole.zMin })
+				end
+				local a, b = math.max(hole.zMin, cursor), hole.zMax
+				if b > a + 0.05 then
+					table.insert(boxes, { xMin = -BIG, xMax = hole.xMin, zMin = a, zMax = b })
+					table.insert(boxes, { xMin = hole.xMax, xMax = BIG, zMin = a, zMax = b })
+				end
+				cursor = math.max(cursor, hole.zMax)
 			end
-			local a, b = math.max(hole.zMin, cursor), hole.zMax
-			if b > a + 0.05 then
-				table.insert(boxes, { xMin = -BIG, xMax = hole.xMin, zMin = a, zMax = b })
-				table.insert(boxes, { xMin = hole.xMax, xMax = BIG, zMin = a, zMax = b })
+			if cursor < f.flatMaxZ - 0.05 then
+				table.insert(boxes, { xMin = -BIG, xMax = BIG, zMin = cursor, zMax = f.flatMaxZ })
 			end
-			cursor = math.max(cursor, hole.zMax)
+			if #boxes == 0 then
+				table.insert(boxes, { xMin = -BIG, xMax = BIG, zMin = f.flatMinZ, zMax = f.flatMaxZ })
+			end
+			for j, box in boxes do
+				local part = if j == 1 then f.part else f.part:Clone()
+				if j > 1 then part.Parent = f.part.Parent end
+				table.insert(f.pieces, { part = part, xMin = box.xMin, xMax = box.xMax, zMin = box.zMin, zMax = box.zMax })
+			end
+			setFlood(f, 0)
 		end
-		if cursor < f.flatMaxZ - 0.05 then
-			table.insert(boxes, { xMin = -BIG, xMax = BIG, zMin = cursor, zMax = f.flatMaxZ })
-		end
-		if #boxes == 0 then
-			table.insert(boxes, { xMin = -BIG, xMax = BIG, zMin = f.flatMinZ, zMax = f.flatMaxZ })
-		end
-		for j, box in boxes do
-			local part = if j == 1 then f.part else f.part:Clone()
-			if j > 1 then part.Parent = f.part.Parent end
-			table.insert(f.pieces, { part = part, xMin = box.xMin, xMax = box.xMax, zMin = box.zMin, zMax = box.zMax })
-		end
-		setFlood(f, 0)
 	end
 
 	self:_initSweeps()
@@ -233,24 +238,26 @@ function HazardService:KnitInit()
 	end)
 end
 
--- sweeping lasers Workspace.Lasers models between the two ramps position derives from the server clock so clients render the same spot
+-- sweeping lasers each world's Lasers models between the two ramps position derives from the server clock so clients render the same spot
 function HazardService:_initSweeps()
-	local folder = Workspace:FindFirstChild("Lasers")
-	if not folder then return end
 	local sweeps: { { model: Model, base: CFrame, minZ: number, maxZ: number, period: number, phase: number, spanX: number } } = {}
-	for _, m in folder:GetChildren() do
-		local minZ = m:GetAttribute("SweepMinZ")
-		if m:IsA("Model") and typeof(minZ) == "number" then
-			local _, size = m:GetBoundingBox()
-			table.insert(sweeps, {
-				model = m,
-				base = m:GetPivot(),
-				minZ = minZ,
-				maxZ = (m:GetAttribute("SweepMaxZ") :: number?) or minZ,
-				period = (m:GetAttribute("SweepPeriod") :: number?) or 24,
-				phase = (m:GetAttribute("SweepPhase") :: number?) or 0,
-				spanX = math.max(size.X, size.Z) / 2,
-			})
+	for _, worldFolder in Worlds.List() do
+		local folder = worldFolder:FindFirstChild("Lasers")
+		if not folder then continue end
+		for _, m in folder:GetChildren() do
+			local minZ = m:GetAttribute("SweepMinZ")
+			if m:IsA("Model") and typeof(minZ) == "number" then
+				local _, size = m:GetBoundingBox()
+				table.insert(sweeps, {
+					model = m,
+					base = m:GetPivot(),
+					minZ = minZ,
+					maxZ = (m:GetAttribute("SweepMaxZ") :: number?) or minZ,
+					period = (m:GetAttribute("SweepPeriod") :: number?) or 24,
+					phase = (m:GetAttribute("SweepPhase") :: number?) or 0,
+					spanX = math.max(size.X, size.Z) / 2,
+				})
+			end
 		end
 	end
 	if #sweeps == 0 then return end
@@ -285,17 +292,21 @@ end
 -- lethal clouds drift wall-to-wall (world X) on the shared server clock, like the lasers
 function HazardService:_initClouds()
 	local clouds: { { part: BasePart, base: CFrame, minX: number, maxX: number, period: number, phase: number } } = {}
-	for _, d in Workspace.Map:GetChildren() do
-		local minX = d:GetAttribute("CloudMinX")
-		if d:IsA("BasePart") and typeof(minX) == "number" then
-			table.insert(clouds, {
-				part = d,
-				base = d.CFrame,
-				minX = minX,
-				maxX = (d:GetAttribute("CloudMaxX") :: number?) or minX,
-				period = (d:GetAttribute("CloudPeriod") :: number?) or 45,
-				phase = (d:GetAttribute("CloudPhase") :: number?) or 0,
-			})
+	for _, worldFolder in Worlds.List() do
+		local map = worldFolder:FindFirstChild("Map")
+		if not map then continue end
+		for _, d in map:GetChildren() do
+			local minX = d:GetAttribute("CloudMinX")
+			if d:IsA("BasePart") and typeof(minX) == "number" then
+				table.insert(clouds, {
+					part = d,
+					base = d.CFrame,
+					minX = minX,
+					maxX = (d:GetAttribute("CloudMaxX") :: number?) or minX,
+					period = (d:GetAttribute("CloudPeriod") :: number?) or 45,
+					phase = (d:GetAttribute("CloudPhase") :: number?) or 0,
+				})
+			end
 		end
 	end
 	if #clouds == 0 then return end

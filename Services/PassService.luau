@@ -6,6 +6,7 @@ local RS = game:GetService("ReplicatedStorage")
 local Knit = require(RS.Packages.Knit)
 local DataService = require(script.Parent.DataService)
 local GamepassConfig = require(RS.Shared.GamepassConfig)
+local Worlds = require(RS.Shared.Worlds)
 
 local PassService = Knit.CreateService({
 	Name = "PassService",
@@ -106,23 +107,25 @@ function PassService:KnitInit()
 		end
 	end)
 
-	-- standing on the VIP stand prompts the pass
+	-- standing on a VIP stand (every world has one) prompts the pass
 	task.spawn(function()
-		local map = workspace:WaitForChild("Map", 10)
-		local stand = map and map:FindFirstChild("VIP")
-		if not stand then return end
 		local lastPrompt: { [Player]: number } = {}
 		Players.PlayerRemoving:Connect(function(p) lastPrompt[p] = nil end)
-		for _, part in stand:GetDescendants() do
-			if not part:IsA("BasePart") then continue end
-			part.Touched:Connect(function(hit)
-				local player = Players:GetPlayerFromCharacter(hit.Parent)
-				if not player or PassService:IsVIP(player) then return end
-				local now = os.clock()
-				if now - (lastPrompt[player] or -math.huge) < 3 then return end
-				lastPrompt[player] = now
-				MarketplaceService:PromptGamePassPurchase(player, GamepassConfig.VIP.Id)
-			end)
+		for _, worldFolder in Worlds.List() do
+			local map = worldFolder:FindFirstChild("Map")
+			local stand = map and map:FindFirstChild("VIP")
+			if not stand then continue end
+			for _, part in stand:GetDescendants() do
+				if not part:IsA("BasePart") then continue end
+				part.Touched:Connect(function(hit)
+					local player = Players:GetPlayerFromCharacter(hit.Parent)
+					if not player or PassService:IsVIP(player) then return end
+					local now = os.clock()
+					if now - (lastPrompt[player] or -math.huge) < 3 then return end
+					lastPrompt[player] = now
+					MarketplaceService:PromptGamePassPurchase(player, GamepassConfig.VIP.Id)
+				end)
+			end
 		end
 	end)
 

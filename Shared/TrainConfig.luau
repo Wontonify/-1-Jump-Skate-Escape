@@ -11,7 +11,6 @@ export type Ground = {
 	AnimSpeed: number?, -- orbit animation playback rate (better grounds spin faster)
 }
 
--- training ground config
 TrainConfig.Grounds = {
 	Bronze = { Rebirths = 0, Multiplier = 1.5, AnimSpeed = 1 },
 	Silver = { Rebirths = 1, Multiplier = 2, AnimSpeed = 1.15 },
@@ -19,6 +18,12 @@ TrainConfig.Grounds = {
 	Ice = { Rebirths = 5, Multiplier = 3, AnimSpeed = 1.45 },
 	Purple = { Robux = 99, GamepassId = 1949547046, Multiplier = 4, AnimSpeed = 1.6 },
 	Red = { Robux = 9, GamepassId = 1947555129, Multiplier = 2.5, AnimSpeed = 1.3 },
+	Alien = { Rebirths = 6, Multiplier = 3.5, AnimSpeed = 1.2 },
+	Plasma = { Rebirths = 8, Multiplier = 4, AnimSpeed = 1.35 },
+	Cobalt = { Rebirths = 10, Multiplier = 4.5, AnimSpeed = 1.5 },
+	Comet = { Rebirths = 12, Multiplier = 5, AnimSpeed = 1.65 },
+	Solar = { Robux = 99, GamepassId = 1949547046, Multiplier = 6, AnimSpeed = 1.8 },
+	Eclipse = { Robux = 9, GamepassId = 1947555129, Multiplier = 4.5, AnimSpeed = 1.5 },
 } :: { [string]: Ground }
 
 -- RebirthLoader gradient
@@ -29,11 +34,12 @@ TrainConfig.Gradients = {
 	Ice = { Color3.fromRGB(55, 145, 220), Color3.fromRGB(190, 240, 255) },
 	Red = { Color3.fromRGB(150, 15, 15), Color3.fromRGB(255, 95, 95) },
 	Purple = { Color3.fromRGB(20, 0, 35), Color3.fromRGB(160, 60, 230) },
+	Alien = { Color3.fromRGB(20, 140, 90), Color3.fromRGB(120, 255, 190) },
+	Plasma = { Color3.fromRGB(170, 25, 170), Color3.fromRGB(255, 120, 255) },
+	Cobalt = { Color3.fromRGB(25, 70, 190), Color3.fromRGB(110, 190, 255) },
+	Comet = { Color3.fromRGB(200, 90, 15), Color3.fromRGB(255, 190, 90) },
+	Solar = { Color3.fromRGB(230, 90, 10), Color3.fromRGB(255, 235, 70) },
+	Eclipse = { Color3.fromRGB(20, 20, 25), Color3.fromRGB(235, 240, 255) },
 }
 
 return TrainConfig
-
-
-
-
-

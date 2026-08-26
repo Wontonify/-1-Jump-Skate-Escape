@@ -7,6 +7,7 @@ local SoundService = game:GetService("SoundService")
 
 local Knit = require(RS.Packages.Knit)
 local GamepassConfig = require(RS:WaitForChild("Shared"):WaitForChild("GamepassConfig"))
+local Worlds = require(RS:WaitForChild("Shared"):WaitForChild("Worlds"))
 
 local player = Players.LocalPlayer
 
@@ -174,27 +175,34 @@ function PassController:KnitStart()
 		end)
 	end)
 
-	-- stepping on the VIP stand chimes alongside the server's purchase prompt
-	task.spawn(function()
-		local map = workspace:WaitForChild("Map", 10)
-		local stand = map and map:WaitForChild("VIP", 10)
-		if not stand then return end
-		local chime = Instance.new("Sound")
-		chime.SoundId = "rbxassetid://104579897781033"
-		chime.Volume = 0.7
-		chime.Parent = SoundService
-		local lastPlay = -math.huge
-		for _, part in stand:GetDescendants() do
-			if not part:IsA("BasePart") then continue end
-			part.Touched:Connect(function(hit)
-				if not hit:IsDescendantOf(player.Character or player) then return end
-				if os.clock() - lastPlay < 3 then return end
-				lastPlay = os.clock()
-				chime.TimePosition = 0
-				chime:Play()
-			end)
-		end
-	end)
+	-- stepping on a VIP stand chimes alongside the server's purchase prompt (one per world;
+	-- streaming hands stand parts back later, so late arrivals wire through DescendantAdded)
+	local chime = Instance.new("Sound")
+	chime.SoundId = "rbxassetid://104579897781033"
+	chime.Volume = 0.7
+	chime.Parent = SoundService
+	local lastPlay = -math.huge
+	local function wireVIPPart(part: Instance)
+		if not part:IsA("BasePart") then return end
+		part.Touched:Connect(function(hit)
+			if not hit:IsDescendantOf(player.Character or player) then return end
+			if os.clock() - lastPlay < 3 then return end
+			lastPlay = os.clock()
+			chime.TimePosition = 0
+			chime:Play()
+		end)
+	end
+	for _, worldFolder in Worlds.WaitList() do
+		task.spawn(function()
+			local map = worldFolder:WaitForChild("Map", 10)
+			local stand = map and map:WaitForChild("VIP", 10)
+			if not stand then return end
+			for _, part in stand:GetDescendants() do
+				wireVIPPart(part)
+			end
+			stand.DescendantAdded:Connect(wireVIPPart)
+		end)
+	end
 end
 
 return PassController

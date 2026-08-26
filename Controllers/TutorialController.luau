@@ -49,9 +49,10 @@ local function jumpUpgrades(): number
 	return (player:GetAttribute("ExtraJumps") :: number?) or 0
 end
 local function nextBoard()
+	-- the tutorial only ever runs in World 1
 	local owned = ownedBoards()
 	for _, entry in SkateboardConfig.Boards do
-		if entry.Wins and entry.Wins > 0 and not table.find(owned, entry.Name) then
+		if entry.World ~= 2 and entry.Wins and entry.Wins > 0 and not table.find(owned, entry.Name) then
 			return entry
 		end
 	end
@@ -64,7 +65,8 @@ local function pivotOf(inst: Instance?): Vector3?
 	return nil
 end
 local function findPath(...): Instance?
-	local node: Instance? = Workspace
+	-- tutorial targets all live in World 1
+	local node: Instance? = Workspace:FindFirstChild("World 1")
 	for _, name in { ... } do
 		if not node then return nil end
 		node = node:FindFirstChild(name)
@@ -192,7 +194,8 @@ local function makeBeam()
 	b.Parent = part
 	beam = b
 
-	local beamFolder = Workspace:FindFirstChild("Beam")
+	local world1 = Workspace:FindFirstChild("World 1")
+	local beamFolder = world1 and world1:FindFirstChild("Beam")
 	staticBeam = beamFolder and beamFolder:FindFirstChildOfClass("Beam")
 	if staticBeam then staticBeam.Enabled = false end -- one arrow at a time, restored on finish
 end
@@ -309,7 +312,3 @@ function TutorialController:KnitStart()
 end
 
 return TutorialController
-
-
-
-

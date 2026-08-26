@@ -9,6 +9,7 @@ local SkateboardService = require(script.Parent.SkateboardService)
 local XPService = require(script.Parent.XPService)
 local PassService = require(script.Parent.PassService)
 local SkateboardConfig = require(RS.Shared.SkateboardConfig)
+local Worlds = require(RS.Shared.Worlds)
 
 local ShopService = Knit.CreateService({
 	Name = "ShopService",
@@ -53,11 +54,12 @@ local function findPads(model: Model): (BasePart?, BasePart?)
 	return red, blue
 end
 
--- wins boards unlock strictly in config order rbx boards sit outside the chain
+-- wins boards unlock strictly in config order within their own world's shop rbx boards sit outside the chain
 local function previousWinsBoard(name: string)
+	local target = SkateboardConfig.ByName(name)
 	local prev = nil
 	for _, entry in SkateboardConfig.Boards do
-		if entry.Wins ~= nil then
+		if entry.Wins ~= nil and entry.World == (target and target.World) then
 			if entry.Name == name then return prev end
 			prev = entry
 		end
@@ -125,39 +127,41 @@ local function onShopTouched(entry, hit: BasePart)
 end
 
 function ShopService:KnitInit()
-	local shop = workspace:FindFirstChild("Shop")
-	if not shop then
-		warn("[ShopService] workspace.Shop is missing")
-		return
-	end
-
-	for _, model in shop:GetChildren() do
-		if not model:IsA("Model") then continue end
-		local entry = SkateboardConfig.ByAsset(model.Name)
-		if not entry then
-			warn("[ShopService] no config entry for shop model " .. model.Name)
+	for world, worldFolder in Worlds.List() do
+		local shop = worldFolder:FindFirstChild("Shop")
+		if not shop then
+			warn("[ShopService] " .. worldFolder.Name .. ".Shop is missing")
 			continue
 		end
 
-		local red, blue = findPads(model)
-		if red then
-			-- center the display board over the red pad
-			local pivot = model:GetPivot()
-			model:PivotTo(CFrame.new(red.Position.X, pivot.Position.Y, red.Position.Z) * (pivot - pivot.Position))
-		else
-			warn("[ShopService] no red pad under " .. model.Name)
-		end
+		for _, model in shop:GetChildren() do
+			if not model:IsA("Model") then continue end
+			local entry = SkateboardConfig.ByAsset(model.Name, world)
+			if not entry then
+				warn("[ShopService] no config entry for shop model " .. model.Name)
+				continue
+			end
 
-		local function wire(part: BasePart)
-			part.Touched:Connect(function(hit) onShopTouched(entry, hit) end)
-		end
-		if red then wire(red) end
-		if blue then wire(blue) end
-		-- display boards are walk-through
-		for _, d in model:GetDescendants() do
-			if d:IsA("BasePart") then
-				d.CanCollide = false
-				wire(d)
+			local red, blue = findPads(model)
+			if red then
+				-- center the display board over the red pad
+				local pivot = model:GetPivot()
+				model:PivotTo(CFrame.new(red.Position.X, pivot.Position.Y, red.Position.Z) * (pivot - pivot.Position))
+			else
+				warn("[ShopService] no red pad under " .. model.Name)
+			end
+
+			local function wire(part: BasePart)
+				part.Touched:Connect(function(hit) onShopTouched(entry, hit) end)
+			end
+			if red then wire(red) end
+			if blue then wire(blue) end
+			-- display boards are walk-through
+			for _, d in model:GetDescendants() do
+				if d:IsA("BasePart") then
+					d.CanCollide = false
+					wire(d)
+				end
 			end
 		end
 	end

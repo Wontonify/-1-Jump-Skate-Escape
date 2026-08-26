@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 
 local Knit = require(RS.Packages.Knit)
+local Worlds = require(RS.Shared.Worlds)
 
 local player = Players.LocalPlayer
 
@@ -21,8 +22,6 @@ crumble.Parent = SoundService
 
 -- sweeping lasers glide on the shared server clock: rendering them locally every frame keeps the beam glass-smooth instead of stepping at replication rate
 local function watchSweeps()
-	local folder = workspace:WaitForChild("Lasers", 20)
-	if not folder then return end
 	local sweeps: { [Model]: { base: CFrame, minZ: number, maxZ: number, period: number, phase: number } } = {}
 	local function wire(m: Instance)
 		local minZ = m:GetAttribute("SweepMinZ")
@@ -36,11 +35,18 @@ local function watchSweeps()
 			}
 		end
 	end
-	for _, m in folder:GetChildren() do wire(m) end
-	folder.ChildAdded:Connect(wire) -- streaming hands models back
-	folder.ChildRemoved:Connect(function(m)
-		sweeps[m :: Model] = nil
-	end)
+	local any = false
+	for _, worldFolder in Worlds.WaitList() do
+		local folder = worldFolder:WaitForChild("Lasers", 20)
+		if not folder then continue end
+		any = true
+		for _, m in folder:GetChildren() do wire(m) end
+		folder.ChildAdded:Connect(wire) -- streaming hands models back
+		folder.ChildRemoved:Connect(function(m)
+			sweeps[m :: Model] = nil
+		end)
+	end
+	if not any then return end
 	RunService.RenderStepped:Connect(function()
 		local t = workspace:GetServerTimeNow()
 		for m, s in sweeps do
@@ -52,8 +58,6 @@ end
 
 -- cloud drift rendered locally for the same smooth motion as the lasers
 local function watchClouds()
-	local map = workspace:WaitForChild("Map", 20)
-	if not map then return end
 	local clouds: { [BasePart]: { base: CFrame, minX: number, maxX: number, period: number, phase: number } } = {}
 	local function wire(d: Instance)
 		local minX = d:GetAttribute("CloudMinX")
@@ -67,11 +71,18 @@ local function watchClouds()
 			}
 		end
 	end
-	for _, d in map:GetChildren() do wire(d) end
-	map.ChildAdded:Connect(wire) -- streaming hands parts back
-	map.ChildRemoved:Connect(function(d)
-		clouds[d :: BasePart] = nil
-	end)
+	local any = false
+	for _, worldFolder in Worlds.WaitList() do
+		local map = worldFolder:WaitForChild("Map", 20)
+		if not map then continue end
+		any = true
+		for _, d in map:GetChildren() do wire(d) end
+		map.ChildAdded:Connect(wire) -- streaming hands parts back
+		map.ChildRemoved:Connect(function(d)
+			clouds[d :: BasePart] = nil
+		end)
+	end
+	if not any then return end
 	RunService.RenderStepped:Connect(function()
 		local t = workspace:GetServerTimeNow()
 		for part, c in clouds do
@@ -88,14 +99,17 @@ function HazardController:KnitStart()
 		local character = player.Character
 		local hrp = character and character:FindFirstChild("HumanoidRootPart")
 		if not (hrp and hrp:IsA("BasePart")) then return end
-		local platforms = workspace:FindFirstChild("Platforms")
-		if not platforms then return end
 		local near = false
-		for _, m in platforms:GetChildren() do
-			if m:IsA("Model") and (m:GetPivot().Position - hrp.Position).Magnitude < NEAR then
-				near = true
-				break
+		for _, worldFolder in Worlds.List() do
+			local platforms = worldFolder:FindFirstChild("Platforms")
+			if not platforms then continue end
+			for _, m in platforms:GetChildren() do
+				if m:IsA("Model") and (m:GetPivot().Position - hrp.Position).Magnitude < NEAR then
+					near = true
+					break
+				end
 			end
+			if near then break end
 		end
 		if not near then return end
 		crumble.TimePosition = 0

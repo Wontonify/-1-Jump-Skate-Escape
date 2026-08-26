@@ -8,6 +8,20 @@ local Knit = require(RS.Packages.Knit)
 local ClickController = require(script.Parent.ClickController)
 local UIController = require(script.Parent.UIController)
 local TrainConfig = require(RS.Shared.TrainConfig)
+local Worlds = require(RS.Shared.Worlds)
+
+-- every world's Train pads together
+local function trainPads(): { BasePart }
+	local pads = {}
+	for _, worldFolder in Worlds.List() do
+		local folder = worldFolder:FindFirstChild("Train")
+		if not folder then continue end
+		for _, pad in folder:GetChildren() do
+			if pad:IsA("BasePart") then table.insert(pads, pad) end
+		end
+	end
+	return pads
+end
 
 local player = Players.LocalPlayer
 
@@ -65,9 +79,7 @@ end
 
 -- multiplier gradient: green = usable by this player, red = locked; re-asserted for streaming
 local function refreshGradients()
-	local folder = Workspace:FindFirstChild("Train")
-	if not folder then return end
-	for _, pad in folder:GetChildren() do
+	for _, pad in trainPads() do
 		local ground = TrainConfig.Grounds[pad.Name]
 		if not ground then continue end
 		local gui = pad:FindFirstChildOfClass("BillboardGui")
@@ -82,6 +94,13 @@ local function refreshGradients()
 		end
 		gradient.Color = if unlocked(pad.Name, ground) then GREEN else RED
 	end
+end
+
+local function findPad(padName: string): BasePart?
+	for _, pad in trainPads() do
+		if pad.Name == padName then return pad end
+	end
+	return nil
 end
 
 function TrainController:KnitStart()
@@ -142,9 +161,7 @@ function TrainController:KnitStart()
 
 	-- already training no prompt
 	local function setPromptsEnabled(enabled: boolean)
-		local folder = Workspace:FindFirstChild("Train")
-		if not folder then return end
-		for _, pad in folder:GetChildren() do
+		for _, pad in trainPads() do
 			local prompt = pad:FindFirstChild("TrainPrompt")
 			if prompt and prompt:IsA("ProximityPrompt") then
 				prompt.Enabled = enabled
@@ -183,8 +200,7 @@ function TrainController:KnitStart()
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		local hrp = character and character:FindFirstChild("HumanoidRootPart")
-		local folder = Workspace:FindFirstChild("Train")
-		local pad = folder and folder:FindFirstChild(padName)
+		local pad = findPad(padName)
 		if not (humanoid and hrp and hrp:IsA("BasePart") and pad and pad:IsA("BasePart")) then return end
 		trainingActive = true
 		hrp.AssemblyLinearVelocity = Vector3.zero

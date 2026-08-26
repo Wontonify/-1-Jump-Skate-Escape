@@ -22,6 +22,7 @@ local PROFILE_TEMPLATE = {
 	Playtime = 0, -- lifetime seconds in game
 	DailyStreak = 0, -- consecutive daily rewards claimed (1-7, 0 = none yet)
 	DailyLast = 0,   -- os.time of the last daily claim
+	World = 1, -- current world; the portal at World 1's end advances it for good
 }
 
 local GameProfileStore = ProfileStore.New("PlayerData_v1", PROFILE_TEMPLATE)
@@ -112,6 +113,7 @@ local function onPlayerAdded(player: Player)
 
 	setupValues(player, profile.Data)
 	DataService:PublishBoards(player)
+	player:SetAttribute("World", profile.Data.World or 1)
 end
 
 local function onPlayerRemoving(player: Player)
@@ -175,6 +177,16 @@ function DataService:PublishBoards(player: Player)
 	player:SetAttribute("Board", d.Board)
 	player:SetAttribute("OwnedBoards", table.concat(d.OwnedBoards, "|"))
 	player:SetAttribute("OwnedTrains", table.concat(d.OwnedTrains or {}, "|"))
+end
+
+function DataService:GetWorld(player: Player): number
+	local d = self:GetData(player); return d and d.World or 1
+end
+
+function DataService:SetWorld(player: Player, world: number)
+	local d = self:GetData(player); if not d then return end
+	d.World = world
+	player:SetAttribute("World", world)
 end
 
 function DataService:GetBoard(player: Player): string

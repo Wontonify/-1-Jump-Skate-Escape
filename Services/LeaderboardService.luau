@@ -7,6 +7,7 @@ local DataStoreService = game:GetService("DataStoreService")
 local Knit = require(RS.Packages.Knit)
 local DataService = require(script.Parent.DataService)
 local TrailService = require(script.Parent.TrailService)
+local Worlds = require(RS.Shared.Worlds)
 
 local LeaderboardService = Knit.CreateService({
 	Name = "LeaderboardService",
@@ -72,14 +73,22 @@ local function flushPlaytime(player: Player)
 	end
 end
 
-local function boardGui(modelName: string): SurfaceGui?
-	local model = Workspace.Map:FindFirstChild(modelName)
-	if not model then return nil end
-	for _, part in model:GetChildren() do
-		local gui = part:FindFirstChildOfClass("SurfaceGui")
-		if gui then return gui end
+-- every world hosts its own copy of the boards; publish to all of them
+local function boardGuis(modelName: string): { SurfaceGui }
+	local guis = {}
+	for _, worldFolder in Worlds.List() do
+		local map = worldFolder:FindFirstChild("Map")
+		local model = map and map:FindFirstChild(modelName)
+		if not model then continue end
+		for _, part in model:GetChildren() do
+			local gui = part:FindFirstChildOfClass("SurfaceGui")
+			if gui then
+				table.insert(guis, gui)
+				break
+			end
+		end
 	end
-	return nil
+	return guis
 end
 
 local function publish(gui: SurfaceGui, entries: { { userId: number, value: number } }, isTime: boolean)
@@ -124,8 +133,9 @@ local function cycle()
 		for _, item in pages:GetCurrentPage() do
 			table.insert(entries, { userId = tonumber(item.key) or 0, value = item.value })
 		end
-		local gui = boardGui(board.model)
-		if gui then publish(gui, entries, board.stat == "Playtime") end
+		for _, gui in boardGuis(board.model) do
+			publish(gui, entries, board.stat == "Playtime")
+		end
 	end
 end
 
@@ -170,18 +180,4 @@ function LeaderboardService:KnitInit()
 	end)
 end
 
-return LeaderboardService
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+return LeaderboardService 

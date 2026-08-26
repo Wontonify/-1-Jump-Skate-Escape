@@ -10,6 +10,19 @@ for i, level in BoostConfig.LevelToNext do
 	BoostConfig.XPToNext[i] = Levels.TotalXPFor(level)
 end
 
+BoostConfig.World2 = {
+	LevelToNext = { 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 145, 150 },
+	JumpsToNext = { 26, 29, 32, 35, 38, 41, 43, 46, 49, 52, 53, 55 },
+	XPToNext = {},
+}
+for i, level in BoostConfig.World2.LevelToNext do
+	BoostConfig.World2.XPToNext[i] = Levels.TotalXPFor(level)
+end
+
+function BoostConfig.For(world)
+	return if world == 2 then BoostConfig.World2 else BoostConfig
+end
+
 BoostConfig.MinHopStuds = 12 -- hop length at level 1
 BoostConfig.MaxHopStuds = 40 -- gate-level hop length when there is no next ramp
 BoostConfig.JumpBoostMin = 5 -- studs/s a mid-air jump adds at least
@@ -21,4 +34,3 @@ BoostConfig.CarryDamp = 0.5 -- share of the above-run-speed carry a ramp keeps: 
 BoostConfig.CarryCap = 1.35 -- launch speed ceiling as a multiple of the ramp's tuned crossing speed
 
 return BoostConfig
-

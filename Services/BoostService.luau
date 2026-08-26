@@ -12,6 +12,7 @@ local SkateboardService = require(script.Parent.SkateboardService)
 local TrailService = require(script.Parent.TrailService)
 local BoostConfig = require(RS.Shared.BoostConfig)
 local Levels = require(RS.Shared.Levels)
+local Worlds = require(RS.Shared.Worlds)
 
 local BoostService = Knit.CreateService({
 	Name = "BoostService",
@@ -27,10 +28,11 @@ local TELEPORT_COOLDOWN = 1.5
 
 local lastBoost: { [Player]: number } = {}
 local lastTeleport: { [Player]: number } = {}
-local platformFront: { [number]: { d: number, y: number } } = {}
+-- keyed by the ramp model itself: both worlds reuse the same ramp indices
+local platformFront: { [Instance]: { d: number, y: number } } = {}
 
-local function findPlatformFront(index: number, origin: Vector3, travelDir: Vector3, fromAlong: number, toAlong: number): { d: number, y: number }?
-	local cached = platformFront[index]
+local function findPlatformFront(rampKey: Instance, origin: Vector3, travelDir: Vector3, fromAlong: number, toAlong: number): { d: number, y: number }?
+	local cached = platformFront[rampKey]
 	if cached then return cached end
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -48,7 +50,7 @@ local function findPlatformFront(index: number, origin: Vector3, travelDir: Vect
 			sawWater = true
 		elseif hit and sawWater then
 			local entry = { d = originAlong + d, y = hit.Position.Y }
-			platformFront[index] = entry
+			platformFront[rampKey] = entry
 			return entry
 		end
 	end
@@ -84,6 +86,7 @@ local function onWedgeTouched(wedge: BasePart, hit: BasePart)
 	local index = tonumber(ramp.Name)
 	if not (ramp:IsA("Model") and index and rampsFolder) then return end
 	lastBoost[player] = now
+	local worldCfg = BoostConfig.For(Worlds.Of(rampsFolder))
 
 	local cf, size = ramp:GetBoundingBox()
 	local gravity = Workspace.Gravity
@@ -113,10 +116,10 @@ local function onWedgeTouched(wedge: BasePart, hit: BasePart)
 	if nextRamp and nextRamp:IsA("Model") then
 		local ncf, nsize = nextRamp:GetBoundingBox()
 		local nextFrontAlong = ncf.Position:Dot(wedgeDir) - sizeAlong(ncf, nsize) / 2
-		local front = findPlatformFront(index, cf.Position, wedgeDir, thisBackAlong, nextFrontAlong)
+		local front = findPlatformFront(ramp, cf.Position, wedgeDir, thisBackAlong, nextFrontAlong)
 		-- the water gap from this ramp's lip to the next platform's real front
 		local gapLen = math.max((front and front.d or nextFrontAlong) - thisBackAlong, BoostConfig.MinHopStuds)
-		local crossTime = BoostConfig.ArcTime + BoostConfig.JumpPeriod * (BoostConfig.JumpsToNext[index] or 0) + BoostConfig.FallGrace
+		local crossTime = BoostConfig.ArcTime + BoostConfig.JumpPeriod * (worldCfg.JumpsToNext[index] or 0) + BoostConfig.FallGrace
 		carrySpeed = gapLen / crossTime
 		maxHop = math.max(carrySpeed * (BoostConfig.ArcTime + BoostConfig.FallGrace), BoostConfig.MinHopStuds)
 		landTargetY = (front and front.y or (ncf.Position.Y + nsize.Y / 2)) + HIP_HEIGHT
@@ -124,7 +127,7 @@ local function onWedgeTouched(wedge: BasePart, hit: BasePart)
 
 	local d = DataService:GetData(player)
 	local levelXP = if d then Levels.TotalXPFor(d.Level) + (d.LevelProgress or 0) else 0
-	local required = BoostConfig.XPToNext[index] or 50
+	local required = worldCfg.XPToNext[index] or 50
 	local fraction = if required > 0 then math.clamp(levelXP / required, 0, 1) else 1
 	-- boost calc by current walkspeed
 	local earnedSpeed = TrailService:ComputeWalkSpeed(player)
@@ -357,8 +360,6 @@ local function onFloorTouched(floor: BasePart, hit: BasePart)
 end
 
 function BoostService:KnitInit()
-	local ramps = Workspace:WaitForChild("Ramps")
-
 	local function wireWedge(inst: Instance)
 		if inst:IsA("BasePart") and inst.Name == "Wedge" then
 			inst.Touched:Connect(function(hit)
@@ -366,10 +367,6 @@ function BoostService:KnitInit()
 			end)
 		end
 	end
-	for _, inst in ramps:GetDescendants() do
-		wireWedge(inst)
-	end
-	ramps.DescendantAdded:Connect(wireWedge)
 
 	local function wireFloor(inst: Instance)
 		if inst:IsA("BasePart") and inst.Name == "Floor" then
@@ -378,40 +375,55 @@ function BoostService:KnitInit()
 			end)
 		end
 	end
-	for _, inst in Workspace:WaitForChild("Map"):GetDescendants() do
-		wireFloor(inst)
-	end
-	Workspace.Map.DescendantAdded:Connect(wireFloor)
-	local floorFolder = Workspace:FindFirstChild("Floor")
-	if floorFolder then
-		for _, inst in floorFolder:GetDescendants() do
-			wireFloor(inst)
+
+	local function wireLaser(inst: Instance)
+		if inst:IsA("BasePart") and inst.Name == "Laser" then
+			inst.Touched:Connect(function(hit)
+				local player, character, hrp = playerFromHit(hit)
+				if player and character and hrp then
+					local humanoid = character:FindFirstChildOfClass("Humanoid")
+					if humanoid and humanoid.Health > 0
+						and os.clock() - (lastTeleport[player] or -math.huge) >= TELEPORT_COOLDOWN then
+						HazardService.Zap(character) -- the laser's hum slams to full volume on the victim
+					end
+					drown(player, character, hrp)
+				end
+			end)
 		end
-		floorFolder.DescendantAdded:Connect(wireFloor)
 	end
 
-	-- laser beams kill on touch, same death as the water
-	local lasers = Workspace:FindFirstChild("Lasers")
-	if lasers then
-		local function wireLaser(inst: Instance)
-			if inst:IsA("BasePart") and inst.Name == "Laser" then
-				inst.Touched:Connect(function(hit)
-					local player, character, hrp = playerFromHit(hit)
-					if player and character and hrp then
-						local humanoid = character:FindFirstChildOfClass("Humanoid")
-						if humanoid and humanoid.Health > 0
-							and os.clock() - (lastTeleport[player] or -math.huge) >= TELEPORT_COOLDOWN then
-							HazardService.Zap(character) -- the laser's hum slams to full volume on the victim
-						end
-						drown(player, character, hrp)
-					end
-				end)
+	for _, worldFolder in Worlds.List() do
+		local ramps = worldFolder:FindFirstChild("Ramps")
+		if ramps then
+			for _, inst in ramps:GetDescendants() do
+				wireWedge(inst)
 			end
+			ramps.DescendantAdded:Connect(wireWedge)
 		end
-		for _, inst in lasers:GetDescendants() do
-			wireLaser(inst)
+
+		local map = worldFolder:FindFirstChild("Map")
+		if map then
+			for _, inst in map:GetDescendants() do
+				wireFloor(inst)
+			end
+			map.DescendantAdded:Connect(wireFloor)
 		end
-		lasers.DescendantAdded:Connect(wireLaser)
+		local floorFolder = worldFolder:FindFirstChild("Floor")
+		if floorFolder then
+			for _, inst in floorFolder:GetDescendants() do
+				wireFloor(inst)
+			end
+			floorFolder.DescendantAdded:Connect(wireFloor)
+		end
+
+		-- laser beams kill on touch, same death as the water
+		local lasers = worldFolder:FindFirstChild("Lasers")
+		if lasers then
+			for _, inst in lasers:GetDescendants() do
+				wireLaser(inst)
+			end
+			lasers.DescendantAdded:Connect(wireLaser)
+		end
 	end
 
 	Players.PlayerRemoving:Connect(function(player)

@@ -6,6 +6,7 @@ local SoundService = game:GetService("SoundService")
 
 local Knit = require(RS.Packages.Knit)
 local SkateboardConfig = require(RS:WaitForChild("Shared"):WaitForChild("SkateboardConfig"))
+local Worlds = require(RS:WaitForChild("Shared"):WaitForChild("Worlds"))
 local UtilController = require(script.Parent.UtilController)
 
 local player = Players.LocalPlayer
@@ -14,7 +15,18 @@ local ShopController = Knit.CreateController({
 	Name = "ShopController",
 })
 
-local billboards: { { gui: BillboardGui, price: TextLabel?, xp: TextLabel, entry: any } } = {}
+local billboards: { { gui: BillboardGui, price: TextLabel?, xp: TextLabel, entry: any, shop: Folder } } = {}
+
+-- every world's shop shows the boards configured for it; world-less entries (Robux stands) sit in all of them
+local function entriesFor(world: number): { any }
+	local list = {}
+	for _, entry in SkateboardConfig.Boards do
+		if entry.World == nil or entry.World == world then
+			table.insert(list, entry)
+		end
+	end
+	return list
+end
 
 -- rewrites the label when wrong, and when the engine laid out zero glyphs for a visible label
 local function assertText(label: TextLabel, text: string)
@@ -38,7 +50,7 @@ local buySound = makeSound(120672563582350, 0.8)
 local PAD_RED = Color3.fromRGB(238, 63, 63)
 local PAD_GREEN = Color3.fromRGB(63, 238, 63)
 local PAD_SIZE = Vector3.new(5, 0.5, 5)
-local greenPad: BasePart? = nil
+local greenPads: { [BasePart]: boolean } = {}
 
 -- the 5x0.5x5 pedestal top directly under a display board
 local function findPadUnder(model: Model): BasePart?
@@ -58,16 +70,22 @@ local function findPadUnder(model: Model): BasePart?
 	return nil
 end
 
--- the equipped stand's pedestal shows green for this player (local-only colour)
-local function updatePadColor(shop: Instance)
+-- the equipped stand's pedestal shows green for this player (local-only colour); the same
+-- entry can have a stand in more than one world
+local function updatePadColor(shops: { { folder: Folder, world: number } })
 	local entry = SkateboardConfig.ByName(player:GetAttribute("Board"))
-	local model = entry and shop:FindFirstChild(entry.Asset)
-	local pad = (model and model:IsA("Model")) and findPadUnder(model) or nil
-	if greenPad ~= pad then
-		if greenPad and greenPad.Parent then greenPad.Color = PAD_RED end
-		greenPad = pad
+	local fresh: { [BasePart]: boolean } = {}
+	for _, s in shops do
+		if not entry or (entry.World ~= nil and entry.World ~= s.world) then continue end
+		local model = s.folder:FindFirstChild(entry.Asset)
+		local pad = (model and model:IsA("Model")) and findPadUnder(model) or nil
+		if pad then fresh[pad] = true end
 	end
-	if greenPad then greenPad.Color = PAD_GREEN end -- re-assert
+	for pad in greenPads do
+		if not fresh[pad] and pad.Parent then pad.Color = PAD_RED end
+	end
+	for pad in fresh do pad.Color = PAD_GREEN end -- re-assert
+	greenPads = fresh
 end
 
 local function priceText(entry): string
@@ -88,26 +106,32 @@ end
 function ShopController:KnitStart()
 	local template = RS:WaitForChild("Assets"):WaitForChild("UI"):WaitForChild("Shop")
 	local groupTemplate = RS.Assets.UI:WaitForChild("Group Reward")
-	local shop = workspace:WaitForChild("Shop")
+	local shops: { { folder: Folder, world: number } } = {}
+	for world, worldFolder in Worlds.WaitList() do
+		local folder = worldFolder:WaitForChild("Shop", 20)
+		if folder then table.insert(shops, { folder = folder, world = world }) end
+	end
 	-- a plain Folder gets wiped from PlayerGui on respawn
 	local holder = Instance.new("ScreenGui")
 	holder.Name = "ShopBillboards"
 	holder.ResetOnSpawn = false
 	holder.Parent = player:WaitForChild("PlayerGui")
 
-	for _, entry in SkateboardConfig.Boards do
-		-- the group board keeps its own authored billboard, which has no price line
-		local gui = (if entry.Group then groupTemplate else template):Clone() :: BillboardGui
-		gui.Name = entry.Asset
-		local xpLabel = gui:WaitForChild("Background"):WaitForChild("PowerLoader") :: TextLabel
-		local price = if entry.Group then nil else gui:WaitForChild("PriceLoader") :: TextLabel
-		xpLabel.Text = "+" .. (entry.XP or 0) .. " XP"
-		-- adorn right away when the stand is already streamed in
-		local model = shop:FindFirstChild(entry.Asset)
-		local part = model and model:FindFirstChild("Board")
-		if part and part:IsA("BasePart") then gui.Adornee = part end
-		gui.Parent = holder
-		table.insert(billboards, { gui = gui, price = price, xp = xpLabel, entry = entry })
+	for _, s in shops do
+		for _, entry in entriesFor(s.world) do
+			-- the group board keeps its own authored billboard, which has no price line
+			local gui = (if entry.Group then groupTemplate else template):Clone() :: BillboardGui
+			gui.Name = entry.Asset
+			local xpLabel = gui:WaitForChild("Background"):WaitForChild("PowerLoader") :: TextLabel
+			local price = if entry.Group then nil else gui:WaitForChild("PriceLoader") :: TextLabel
+			xpLabel.Text = "+" .. (entry.XP or 0) .. " XP"
+			-- adorn right away when the stand is already streamed in
+			local model = s.folder:FindFirstChild(entry.Asset)
+			local part = model and model:FindFirstChild("Board")
+			if part and part:IsA("BasePart") then gui.Adornee = part end
+			gui.Parent = holder
+			table.insert(billboards, { gui = gui, price = price, xp = xpLabel, entry = entry, shop = s.folder })
+		end
 	end
 	refreshAll()
 
@@ -140,14 +164,16 @@ function ShopController:KnitStart()
 		end)
 	end
 	local function wireRobuxStands()
-		for _, entry in SkateboardConfig.Boards do
-			if not entry.Robux then continue end
-			local model = shop:FindFirstChild(entry.Asset)
-			if not (model and model:IsA("Model")) then continue end
-			local pad = findPadUnder(model)
-			if pad then wireRobuxPart(pad, entry) end
-			for _, d in model:GetDescendants() do
-				if d:IsA("BasePart") then wireRobuxPart(d, entry) end
+		for _, s in shops do
+			for _, entry in SkateboardConfig.Boards do
+				if not entry.Robux then continue end
+				local model = s.folder:FindFirstChild(entry.Asset)
+				if not (model and model:IsA("Model")) then continue end
+				local pad = findPadUnder(model)
+				if pad then wireRobuxPart(pad, entry) end
+				for _, d in model:GetDescendants() do
+					if d:IsA("BasePart") then wireRobuxPart(d, entry) end
+				end
 			end
 		end
 	end
@@ -155,10 +181,10 @@ function ShopController:KnitStart()
 
 	player:GetAttributeChangedSignal("Board"):Connect(function()
 		refreshAll()
-		updatePadColor(shop)
+		updatePadColor(shops)
 	end)
 	player:GetAttributeChangedSignal("OwnedBoards"):Connect(refreshAll)
-	updatePadColor(shop)
+	updatePadColor(shops)
 
 	-- display boards float a touch smaller, hovering up-down and slowly spinning (local-only)
 	-- streaming hands back fresh authored-size instances, so shrink + rebase per instance)
@@ -168,8 +194,8 @@ function ShopController:KnitStart()
 		spun += dt
 		local bob = math.sin(spun * 2.5) * 0.35
 		local turn = CFrame.Angles(0, spun * 0.8, 0)
-		for _, entry in SkateboardConfig.Boards do
-			local model = shop:FindFirstChild(entry.Asset)
+		for _, b in billboards do
+			local model = b.shop:FindFirstChild(b.entry.Asset)
 			if not (model and model:IsA("Model") and model:FindFirstChild("Board")) then continue end
 			local base = displays[model]
 			if not base then
@@ -185,7 +211,7 @@ function ShopController:KnitStart()
 	task.spawn(function()
 		while true do
 			for _, b in billboards do
-				local model = shop:FindFirstChild(b.entry.Asset)
+				local model = b.shop:FindFirstChild(b.entry.Asset)
 				local part = model and model:FindFirstChild("Board")
 				local adornee = (part and part:IsA("BasePart")) and part or nil
 				if b.gui.Adornee ~= adornee then
@@ -208,7 +234,7 @@ function ShopController:KnitStart()
 			for model in displays do
 				if not model.Parent then displays[model] = nil end
 			end
-			updatePadColor(shop)
+			updatePadColor(shops)
 			wireRobuxStands()
 			task.wait(1)
 		end

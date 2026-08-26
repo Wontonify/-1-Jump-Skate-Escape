@@ -91,7 +91,7 @@ return {
 	Console_AdminsOnly = false; -- If true, only admins will be able to access the console
 
 	HelpSystem = true;	-- Allows players to call admins for help using !help
-	HelpButton = true;	-- Shows a little help button in the bottom right corner.
+	HelpButton = false;	-- Shows a little help button in the bottom right corner.
 	HelpButtonImage = "rbxassetid://357249130";	-- Sets the image used for the Adonis help button above.
 
 	HttpWait = 60;	-- How long things that use the HttpService will wait before updating again

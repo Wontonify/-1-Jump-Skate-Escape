@@ -6,6 +6,7 @@ local Workspace = game:GetService("Workspace")
 local Knit = require(RS.Packages.Knit)
 local PassService = require(script.Parent.PassService)
 local GamepassConfig = require(RS.Shared.GamepassConfig)
+local Worlds = require(RS.Shared.Worlds)
 
 local ReviveService = Knit.CreateService({
 	Name = "ReviveService",
@@ -18,18 +19,24 @@ local maxZ: { [Player]: number } = {}
 local pending: { [Player]: { pos: Vector3, t: number } } = {}
 local autoRevive: { [Player]: boolean } = {}
 
-local anchors: { { z: number, pos: Vector3 } } = {}
+local anchorsByWorld: { [number]: { { z: number, pos: Vector3 } } } = {}
 
 -- the furthest anchor passed this run beats the last stood-on spot
 local function checkpointPos(player: Player): Vector3?
 	local z = maxZ[player]
 	local best: Vector3? = nil
 	if z then
-		for _, a in anchors do
+		for _, a in anchorsByWorld[Worlds.PlayerWorld(player)] or {} do
 			if a.z <= z + 1 then best = a.pos else break end
 		end
 	end
 	return best or lastSafe[player]
+end
+
+-- crossing into another world starts a fresh run there
+function ReviveService:ResetRun(player: Player)
+	lastSafe[player] = nil
+	maxZ[player] = nil
 end
 
 local function reviveTo(character: Model, pos: Vector3)
@@ -84,20 +91,29 @@ function ReviveService:KnitInit()
 		autoRevive[p] = nil
 	end)
 
-	local ramps = Workspace:FindFirstChild("Ramps")
-	if ramps then
-		for _, ramp in ramps:GetChildren() do
-			if ramp:IsA("Model") and tonumber(ramp.Name) then
-				local cf, size = ramp:GetBoundingBox()
-				local pos = Vector3.new(cf.X, cf.Y - size.Y / 2 + 4, cf.Z - size.Z / 2 - 12)
-				table.insert(anchors, { z = pos.Z, pos = pos })
+	local lobbyZ = -math.huge
+	for world, folder in Worlds.List() do
+		local anchors = {}
+		local ramps = folder:FindFirstChild("Ramps")
+		if ramps then
+			for _, ramp in ramps:GetChildren() do
+				if ramp:IsA("Model") and tonumber(ramp.Name) then
+					local cf, size = ramp:GetBoundingBox()
+					local pos = Vector3.new(cf.X, cf.Y - size.Y / 2 + 4, cf.Z - size.Z / 2 - 12)
+					table.insert(anchors, { z = pos.Z, pos = pos })
+				end
 			end
+			table.sort(anchors, function(a, b) return a.z < b.z end)
 		end
-		table.sort(anchors, function(a, b) return a.z < b.z end)
+		anchorsByWorld[world] = anchors
+		if #anchors > 0 then lobbyZ = math.max(lobbyZ, anchors[1].z - 6) end
 	end
-	local lobbyZ = if #anchors > 0 then anchors[1].z - 6 else -math.huge
 
-	local platforms = Workspace:FindFirstChild("Platforms")
+	local platformFolders = {}
+	for _, folder in Worlds.List() do
+		local platforms = folder:FindFirstChild("Platforms")
+		if platforms then table.insert(platformFolders, platforms) end
+	end
 	task.spawn(function()
 		while true do
 			task.wait(0.25)
@@ -119,7 +135,14 @@ function ReviveService:KnitInit()
 				params.FilterDescendantsInstances = { character }
 				local hit = Workspace:Raycast(hrp.Position, Vector3.new(0, -8, 0), params)
 				if not hit or hit.Instance.Name == "Floor" or hit.Instance.Name == "Laser" then continue end
-				if platforms and hit.Instance:IsDescendantOf(platforms) then continue end
+				local onPlatform = false
+				for _, platforms in platformFolders do
+					if hit.Instance:IsDescendantOf(platforms) then
+						onPlatform = true
+						break
+					end
+				end
+				if onPlatform then continue end
 				lastSafe[player] = hrp.Position
 			end
 		end
