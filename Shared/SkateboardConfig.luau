@@ -13,15 +13,17 @@ SkateboardConfig.Boards = {
 	{ Name = "Snow Angel", Asset = "White Void Skate", XP = 35, Wins = 250000, World = 1 },
 	
 	-- Elemental Skate Bundle boards, basic to cool
-	{ Name = "Normal", Asset = "Normal Skate1", XP = 40, Wins = 500000, World = 2 },
-	{ Name = "Normal 2", Asset = "Normal Skate2", XP = 46, Wins = 1600000, World = 2 },
-	{ Name = "Wooden", Asset = "Wooden Skate", XP = 52, Wins = 5000000, World = 2 },
-	{ Name = "Blocked", Asset = "Blocked Skate", XP = 60, Wins = 16000000, World = 2 },
-	{ Name = "Race", Asset = "Race Skate", XP = 68, Wins = 50000000, World = 2 },
-	{ Name = "Nature", Asset = "Nature Skate", XP = 76, Wins = 160000000, World = 2 },
-	{ Name = "Lucky Block", Asset = "Lucky Block Skate", XP = 85, Wins = 500000000, World = 2 },
-	{ Name = "Mystic", Asset = "Mystic Skate", XP = 95, Wins = 1750000000, World = 2 },
-	{ Name = "Death", Asset = "Death Skate", XP = 105, Wins = 6000000000, World = 2 },
+	-- prices are world 1's ladder x50000: every board costs twice as many pad runs as
+	-- its world 1 counterpart did (pads pay x25000), the first one costs a pad 1 cash-out
+	{ Name = "Normal", Asset = "Normal Skate1", XP = 40, Wins = 25000, World = 2 },
+	{ Name = "Normal 2", Asset = "Normal Skate2", XP = 48, Wins = 50000, World = 2 },
+	{ Name = "Wooden", Asset = "Wooden Skate", XP = 56, Wins = 250000, World = 2 },
+	{ Name = "Blocked", Asset = "Blocked Skate", XP = 64, Wins = 2500000, World = 2 },
+	{ Name = "Race", Asset = "Race Skate", XP = 72, Wins = 12500000, World = 2 },
+	{ Name = "Nature", Asset = "Nature Skate", XP = 80, Wins = 60000000, World = 2 },
+	{ Name = "Lucky Block", Asset = "Lucky Block Skate", XP = 88, Wins = 350000000, World = 2 },
+	{ Name = "Mystic", Asset = "Mystic Skate", XP = 96, Wins = 2000000000, World = 2 },
+	{ Name = "Death", Asset = "Death Skate", XP = 105, Wins = 12500000000, World = 2 },
 	{ Name = "Water", Asset = "Water Skate 2", XP = 20, Robux = 45, GamepassId = 1940239118 },
 	{ Name = "Invisible", Asset = "Glass Skate", XP = 25, Robux = 45, GamepassId = 1940629137 },
 	{ Name = "Dark", Asset = "Void Skate", XP = 45, Robux = 360, GamepassId = 1940353090 },

@@ -180,4 +180,4 @@ function LeaderboardService:KnitInit()
 	end)
 end
 
-return LeaderboardService 
+return LeaderboardService

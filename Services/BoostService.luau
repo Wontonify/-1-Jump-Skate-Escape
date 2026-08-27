@@ -86,7 +86,8 @@ local function onWedgeTouched(wedge: BasePart, hit: BasePart)
 	local index = tonumber(ramp.Name)
 	if not (ramp:IsA("Model") and index and rampsFolder) then return end
 	lastBoost[player] = now
-	local worldCfg = BoostConfig.For(Worlds.Of(rampsFolder))
+	local world = Worlds.Of(rampsFolder)
+	local worldCfg = BoostConfig.For(world)
 
 	local cf, size = ramp:GetBoundingBox()
 	local gravity = Workspace.Gravity
@@ -126,7 +127,7 @@ local function onWedgeTouched(wedge: BasePart, hit: BasePart)
 	end
 
 	local d = DataService:GetData(player)
-	local levelXP = if d then Levels.TotalXPFor(d.Level) + (d.LevelProgress or 0) else 0
+	local levelXP = if d then Levels.TotalXPFor(d.Level, world) + (d.LevelProgress or 0) else 0
 	local required = worldCfg.XPToNext[index] or 50
 	local fraction = if required > 0 then math.clamp(levelXP / required, 0, 1) else 1
 	-- boost calc by current walkspeed

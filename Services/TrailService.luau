@@ -10,7 +10,6 @@ local DataService = require(script.Parent.DataService)
 local PassService = require(script.Parent.PassService)
 local GamepassConfig = require(RS.Shared.GamepassConfig)
 local TrailConfig = require(RS.Shared.TrailConfig)
-local SkateboardConfig = require(RS.Shared.SkateboardConfig)
 local Levels = require(RS.Shared.Levels)
 
 local TrailService = Knit.CreateService({
@@ -48,19 +47,18 @@ local function owns(player: Player, name: string): boolean
 	return d and d.Trails and table.find(d.Trails, name) ~= nil or false
 end
 
--- base + level + board's xp + shop upgrades
+-- base + level (world 2 pays half per level) + shop upgrades; the board's XP is income only
 function TrailService:ComputeWalkSpeed(player: Player): number
 	local d = DataService:GetData(player)
 	local level = d and d.Level or 1
-	local board = d and SkateboardConfig.ByName(d.Board or "")
-	local boardBonus = board and board.XP or 0
+	local world = d and d.World or 1
 	local upgrades = d and d.SpeedUpgrade or 0
 	local pack = if d and d.StarterPack then 3 else 0
 	local friends = (player:GetAttribute("FriendBoost") :: number?) or 1
 	local event = if ((Workspace:GetAttribute("EventSpeedUntil") :: number?) or 0) > os.time()
 		then ((Workspace:GetAttribute("EventSpeedMult") :: number?) or 1)
 		else 1
-	return (BASE_WALKSPEED + math.max(level - 1, 0) + boardBonus + upgrades + pack) * PassService:SpeedMultiplier(player) * friends * event
+	return (BASE_WALKSPEED + Levels.SpeedFromLevel(level, world) + upgrades + pack) * PassService:SpeedMultiplier(player) * friends * event
 end
 
 -- equipped trail's wins multiplier
@@ -201,6 +199,9 @@ local function setup(player: Player)
 			apply(player)
 		end)
 		player:GetAttributeChangedSignal("SpeedUpgrade"):Connect(function()
+			apply(player)
+		end)
+		player:GetAttributeChangedSignal("World"):Connect(function()
 			apply(player)
 		end)
 	end)

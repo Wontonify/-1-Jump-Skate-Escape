@@ -16,14 +16,15 @@ TrainConfig.Grounds = {
 	Silver = { Rebirths = 1, Multiplier = 2, AnimSpeed = 1.15 },
 	Gold = { Rebirths = 3, Multiplier = 2.5, AnimSpeed = 1.3 },
 	Ice = { Rebirths = 5, Multiplier = 3, AnimSpeed = 1.45 },
-	Purple = { Robux = 99, GamepassId = 1949547046, Multiplier = 4, AnimSpeed = 1.6 },
+	Purple = { Robux = 90, GamepassId = 1949547046, Multiplier = 4, AnimSpeed = 1.6 },
 	Red = { Robux = 9, GamepassId = 1947555129, Multiplier = 2.5, AnimSpeed = 1.3 },
-	Alien = { Rebirths = 6, Multiplier = 3.5, AnimSpeed = 1.2 },
-	Plasma = { Rebirths = 8, Multiplier = 4, AnimSpeed = 1.35 },
-	Cobalt = { Rebirths = 10, Multiplier = 4.5, AnimSpeed = 1.5 },
-	Comet = { Rebirths = 12, Multiplier = 5, AnimSpeed = 1.65 },
-	Solar = { Robux = 99, GamepassId = 1949547046, Multiplier = 6, AnimSpeed = 1.8 },
-	Eclipse = { Robux = 9, GamepassId = 1947555129, Multiplier = 4.5, AnimSpeed = 1.5 },
+	-- world 2 continues world 1's ladder: its rebirth gates shifted by 5 (0/1/3/5 -> 5/6/8/10)
+	Alien = { Rebirths = 5, Multiplier = 3, AnimSpeed = 1.2 },
+	Plasma = { Rebirths = 6, Multiplier = 3.5, AnimSpeed = 1.35 },
+	Cobalt = { Rebirths = 8, Multiplier = 4, AnimSpeed = 1.5 },
+	Comet = { Rebirths = 10, Multiplier = 4.5, AnimSpeed = 1.65 },
+	Solar = { Robux = 90, GamepassId = 1962342337, Multiplier = 5, AnimSpeed = 1.8 },
+	Eclipse = { Robux = 18, GamepassId = 1963422323, Multiplier = 3.5, AnimSpeed = 1.5 },
 } :: { [string]: Ground }
 
 -- RebirthLoader gradient

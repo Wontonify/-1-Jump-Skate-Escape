@@ -44,14 +44,15 @@ function XPService:GrantXP(player: Player, amount: number)
 
 	local maxLevel = Rebirths.MaxLevelFor(data.Rebirth)
 	if data.Level >= maxLevel then return end
+	local world = data.World or 1
 	local startLevel = data.Level
 	local progress = data.LevelProgress + amount
 	local level = startLevel
-	local req = Levels.RequirementFor(level)
+	local req = Levels.RequirementFor(level, world)
 	while progress >= req and level < maxLevel do
 		progress -= req
 		level += 1
-		req = Levels.RequirementFor(level)
+		req = Levels.RequirementFor(level, world)
 	end
 	if level >= maxLevel then
 		level = maxLevel

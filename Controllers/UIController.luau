@@ -11,7 +11,7 @@ local Levels = require(RS:WaitForChild("Shared"):WaitForChild("Levels"))
 local Rebirths = require(RS:WaitForChild("Shared"):WaitForChild("Rebirths"))
 local TrailConfig = require(RS:WaitForChild("Shared"):WaitForChild("TrailConfig"))
 local GamepassConfig = require(RS:WaitForChild("Shared"):WaitForChild("GamepassConfig"))
-local SkateboardConfig = require(RS:WaitForChild("Shared"):WaitForChild("SkateboardConfig"))
+local Worlds = require(RS:WaitForChild("Shared"):WaitForChild("Worlds"))
 local UtilController = require(script.Parent.UtilController)
 
 local HOVER, HOVER_LEFT, PRESS = 1.08, 1.1, 0.94
@@ -49,12 +49,10 @@ function UIController:KnitStart()
 	local progressV = dataFolder:WaitForChild("LevelProgress") :: NumberValue
 	local rebirthV = dataFolder:WaitForChild("Rebirth") :: NumberValue
 
-	-- base + 1 per level + board bonus + shop upgrades, doubled by the 2x Speed pass
+	-- base + per-level gain (halved in world 2) + shop upgrades, doubled by the 2x Speed pass
 	local baseSpeed = game:GetService("StarterPlayer").CharacterWalkSpeed
 	if baseSpeed <= 0 then baseSpeed = 16 end
 	local function speedFor(level: number): number
-		local entry = SkateboardConfig.ByName(player:GetAttribute("Board"))
-		local board = entry and entry.XP or 0
 		local upgrades = (player:GetAttribute("SpeedUpgrade") :: number?) or 0
 		local pack = if player:GetAttribute("StarterPackOwned") then 3 else 0
 		local mult = if player:GetAttribute("SpeedOwned") then GamepassConfig.Speed.Mult else 1
@@ -62,18 +60,19 @@ function UIController:KnitStart()
 		local event = if ((workspace:GetAttribute("EventSpeedUntil") :: number?) or 0) > os.time()
 			then ((workspace:GetAttribute("EventSpeedMult") :: number?) or 1)
 			else 1
-		return math.floor((baseSpeed + math.max(level - 1, 0) + board + upgrades + pack) * mult * friends * event + 0.5)
+		local levelSpeed = Levels.SpeedFromLevel(level, Worlds.PlayerWorld(player))
+		return (baseSpeed + levelSpeed + upgrades + pack) * mult * friends * event
 	end
 	-- the headline counter shows that whole number, not the lifetime grind balance
 	local function updateTotalSpeed()
-		totalPowerLabel.Text = "Total Speed: " .. speedFor(levelV.Value)
+		totalPowerLabel.Text = "Total Speed: " .. math.floor(speedFor(levelV.Value) + 0.5)
 	end
 	levelV.Changed:Connect(updateTotalSpeed)
-	player:GetAttributeChangedSignal("Board"):Connect(updateTotalSpeed)
 	player:GetAttributeChangedSignal("SpeedUpgrade"):Connect(updateTotalSpeed)
 	player:GetAttributeChangedSignal("SpeedOwned"):Connect(updateTotalSpeed)
 	player:GetAttributeChangedSignal("StarterPackOwned"):Connect(updateTotalSpeed)
 	player:GetAttributeChangedSignal("FriendBoost"):Connect(updateTotalSpeed)
+	player:GetAttributeChangedSignal("World"):Connect(updateTotalSpeed)
 	workspace:GetAttributeChangedSignal("EventSpeedUntil"):Connect(updateTotalSpeed)
 	updateTotalSpeed()
 
@@ -97,7 +96,7 @@ function UIController:KnitStart()
 			requirement.Text = "MAX LEVEL"
 			frac = 1
 		else
-			local req = Levels.RequirementFor(level)
+			local req = Levels.RequirementFor(level, Worlds.PlayerWorld(player))
 			requirement.Text = UtilController.Short(progressV.Value) .. "/" .. UtilController.Short(req)
 			frac = if req > 0 then math.clamp(progressV.Value / req, 0, 1) else 0
 		end
@@ -108,6 +107,7 @@ function UIController:KnitStart()
 	levelV.Changed:Connect(updateLevel)
 	progressV.Changed:Connect(updateLevel)
 	rebirthV.Changed:Connect(updateLevel)
+	player:GetAttributeChangedSignal("World"):Connect(updateLevel)
 	updateLevel()
 
 	-- level-up celebration sound + particle burst on the character
@@ -648,7 +648,7 @@ function UIController:KnitStart()
 		box.FocusLost:Connect(function()
 			local n = tonumber(box.Text)
 			if n then
-				chosen = math.clamp(math.floor(n + 0.5), 1, maxSpeed())
+				chosen = math.clamp(math.floor(n + 0.5), 1, math.floor(maxSpeed()))
 				box.Text = tostring(chosen)
 			else
 				chosen = nil

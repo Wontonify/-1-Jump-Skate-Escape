@@ -7,16 +7,17 @@ BoostConfig.JumpsToNext = { 0, 2, 3, 4, 6, 8, 11, 14, 17, 20, 23, 26 }
 -- each ramp's gate in XP
 BoostConfig.XPToNext = {}
 for i, level in BoostConfig.LevelToNext do
-	BoostConfig.XPToNext[i] = Levels.TotalXPFor(level)
+	BoostConfig.XPToNext[i] = Levels.TotalXPFor(level, 1)
 end
 
+-- world 2 mirrors world 1 ramp for ramp at twice the level, and asks for the jump
 BoostConfig.World2 = {
-	LevelToNext = { 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 145, 150 },
-	JumpsToNext = { 26, 29, 32, 35, 38, 41, 43, 46, 49, 52, 53, 55 },
+	LevelToNext = { 2, 6, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 },
+	JumpsToNext = { 0, 2, 3, 5, 8, 11, 15, 20, 24, 30, 35, 40 },
 	XPToNext = {},
 }
 for i, level in BoostConfig.World2.LevelToNext do
-	BoostConfig.World2.XPToNext[i] = Levels.TotalXPFor(level)
+	BoostConfig.World2.XPToNext[i] = Levels.TotalXPFor(level, 2)
 end
 
 function BoostConfig.For(world)

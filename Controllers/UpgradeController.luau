@@ -166,4 +166,4 @@ function UpgradeController:KnitStart()
 	end)
 end
 
-return UpgradeController 
+return UpgradeController
