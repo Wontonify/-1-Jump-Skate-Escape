@@ -4,6 +4,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local RS = game:GetService("ReplicatedStorage")
 
 local Knit = require(RS.Packages.Knit)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 local SkateboardService = require(script.Parent.SkateboardService)
 local XPService = require(script.Parent.XPService)
@@ -121,6 +122,7 @@ local function onShopTouched(entry, hit: BasePart)
 		return
 	end
 	DataService:SetWins(player, data.Wins - price)
+	AnalyticsService:LogWinsSpent(player, price, "Board_" .. entry.Name)
 	DataService:UnlockBoard(player, entry.Name)
 	equipBoard(player, entry) -- first purchase auto-equips
 	ShopService.Client.Bought:Fire(player, entry.Name)

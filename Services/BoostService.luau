@@ -5,6 +5,7 @@ local Debris = game:GetService("Debris")
 local Workspace = game:GetService("Workspace")
 
 local Knit = require(RS.Packages.Knit)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 local HazardService = require(script.Parent.HazardService)
 local ReviveService = require(script.Parent.ReviveService)
@@ -321,11 +322,11 @@ local function onWedgeTouched(wedge: BasePart, hit: BasePart)
 		end
 	end)
 	Debris:AddItem(lv, 30)
-	Debris:AddItem(gyro, 33)
+	Debris:AddItem(gyro, 33) 
 end
 
 -- falling in the water kills
-local function drown(player: Player, character: Model, hrp: BasePart)
+local function drown(player: Player, character: Model, hrp: BasePart, cause: string?)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not humanoid or humanoid.Health <= 0 then return end
 
@@ -341,6 +342,7 @@ local function drown(player: Player, character: Model, hrp: BasePart)
 	SkateboardService.Client.Fell:Fire(player)
 	-- Permanent Revive no death, just straight back to the last island
 	if ReviveService:TryInstantRevive(player) then return end
+	AnalyticsService:LogDeath(player, cause or "Water")
 	humanoid.Health = 0
 end
 
@@ -357,7 +359,7 @@ local function onFloorTouched(floor: BasePart, hit: BasePart)
 		if below and below.Instance.Name ~= "Floor" then return end
 		if hrp.AssemblyLinearVelocity.Y > 10 then return end
 	end
-	drown(player, character, hrp)
+	drown(player, character, hrp, if floor.Material == Enum.Material.Neon then "Lava" else "Water")
 end
 
 function BoostService:KnitInit()

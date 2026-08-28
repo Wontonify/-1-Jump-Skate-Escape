@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 
 local Knit = require(RS.Packages.Knit)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 local XPService = require(script.Parent.XPService)
 local PassService = require(script.Parent.PassService)
@@ -49,6 +50,7 @@ function DailyRewardService:ClaimNext(player: Player, skipTimer: boolean?): bool
 	if not r then return false end
 	if r.Type == "Wins" then
 		DataService:AddWins(player, r.Amount)
+		AnalyticsService:LogWinsEarned(player, r.Amount, Enum.AnalyticsEconomyTransactionType.TimedReward.Name, "Daily" .. day)
 	else
 		XPService:GrantXP(player, r.Amount)
 	end

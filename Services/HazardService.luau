@@ -6,6 +6,7 @@ local Debris = game:GetService("Debris")
 local Workspace = game:GetService("Workspace")
 
 local Knit = require(RS.Packages.Knit)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local ReviveService = require(script.Parent.ReviveService)
 local Worlds = require(RS.Shared.Worlds)
 
@@ -282,6 +283,7 @@ function HazardService:_initSweeps()
 				lastZap[player] = os.clock()
 				HazardService.Zap(character)
 				if not ReviveService:TryInstantRevive(player) then
+					AnalyticsService:LogDeath(player, "Laser")
 					humanoid.Health = 0
 				end
 			end
@@ -330,6 +332,7 @@ function HazardService:_initClouds()
 				lastKill[player] = os.clock()
 				HazardService.Shock(character) -- like the laser Zap, fires even when a revive saves you
 				if not ReviveService:TryInstantRevive(player) then
+					AnalyticsService:LogDeath(player, "Cloud")
 					humanoid.Health = 0
 				end
 			end

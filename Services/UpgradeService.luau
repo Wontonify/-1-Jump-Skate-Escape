@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 
 local Knit = require(RS.Packages.Knit)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 local PassService = require(script.Parent.PassService)
 local XPService = require(script.Parent.XPService)
@@ -40,6 +41,7 @@ function UpgradeService:BuySpeed(player: Player)
 		return
 	end
 	DataService:AddWins(player, -cost)
+	AnalyticsService:LogWinsSpent(player, cost, "SpeedUpgrade")
 	DataService:SetSpeedUpgrade(player, level + 1)
 	publish(player) -- TrailService watches the attribute and re-applies walkspeed
 	BadgeService:Award(player, BadgeService.Ids.PurchaseUpgrade)
@@ -60,6 +62,7 @@ function UpgradeService:BuyJump(player: Player)
 		return
 	end
 	DataService:AddWins(player, -cost)
+	AnalyticsService:LogWinsSpent(player, cost, "JumpUpgrade")
 	DataService:AddExtraJumps(player, 1)
 	PassService:Refresh(player) -- republishes BonusJumps so the pool grows live
 	publish(player)
@@ -122,4 +125,3 @@ function UpgradeService:KnitInit()
 end
 
 return UpgradeService
-

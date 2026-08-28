@@ -5,6 +5,7 @@ local RS = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Knit = require(RS.Packages.Knit)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 local PassService = require(script.Parent.PassService)
 local TrailService = require(script.Parent.TrailService)
@@ -40,6 +41,7 @@ local function grantWins(player: Player, amount: number, index: number?, world: 
 	local granted = math.floor(amount * PassService:WinsMultiplier(player) * TrailService:WinsMultiplier(player))
 	DataService:AddWins(player, granted)
 	WinsService.Client.Collected:Fire(player, granted)
+	AnalyticsService:LogCashOut(player, world, index, granted)
 	if world == 1 and index == #WinsConfig.PadWins then
 		BadgeService:Award(player, BadgeService.Ids.ReachEndWorld1)
 	end

@@ -6,6 +6,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Workspace = game:GetService("Workspace")
 
 local Knit = require(RS.Packages.Knit)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 local PassService = require(script.Parent.PassService)
 local GamepassConfig = require(RS.Shared.GamepassConfig)
@@ -155,6 +156,7 @@ local function onBuy(player: Player, name: string)
 		return
 	end
 	DataService:SetWins(player, d.Wins - entry.Wins)
+	AnalyticsService:LogWinsSpent(player, entry.Wins, "Trail_" .. name)
 	grant(player, name)
 	TrailService.Client.Bought:Fire(player, name)
 	equip(player, name)
