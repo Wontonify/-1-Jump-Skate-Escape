@@ -25,6 +25,9 @@ local function publish(player: Player)
 	if not d then return end
 	player:SetAttribute("SpeedUpgrade", d.SpeedUpgrade or 0)
 	player:SetAttribute("ExtraJumps", d.ExtraJumps or 0)
+	if (d.SpeedUpgrade or 0) + (d.ExtraJumps or 0) >= 5 then
+		BadgeService:Award(player, BadgeService.Ids.Upgrades5)
+	end
 end
 
 function UpgradeService:BuySpeed(player: Player)

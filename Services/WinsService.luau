@@ -42,8 +42,11 @@ local function grantWins(player: Player, amount: number, index: number?, world: 
 	DataService:AddWins(player, granted)
 	WinsService.Client.Collected:Fire(player, granted)
 	AnalyticsService:LogCashOut(player, world, index, granted)
-	if world == 1 and index == #WinsConfig.PadWins then
-		BadgeService:Award(player, BadgeService.Ids.ReachEndWorld1)
+	if world and index and index == #WinsConfig.For(world) then
+		local endBadge = if world == 1 then BadgeService.Ids.ReachEndWorld1
+			elseif world == 2 then BadgeService.Ids.ReachEndWorld2
+			else nil
+		if endBadge then BadgeService:Award(player, endBadge) end
 	end
 
 	-- back to the start for the next run a live boost hold or gyro must not come along

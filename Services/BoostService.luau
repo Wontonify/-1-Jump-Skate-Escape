@@ -322,7 +322,7 @@ local function onWedgeTouched(wedge: BasePart, hit: BasePart)
 		end
 	end)
 	Debris:AddItem(lv, 30)
-	Debris:AddItem(gyro, 33) 
+	Debris:AddItem(gyro, 33)
 end
 
 -- falling in the water kills
