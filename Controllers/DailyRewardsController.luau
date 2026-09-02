@@ -3,6 +3,8 @@ local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Knit = require(RS.Packages.Knit)
 local UtilController = require(script.Parent.UtilController)
@@ -72,6 +74,45 @@ function DailyRewardsController:KnitStart()
 		if nameL and nameL:IsA("TextLabel") then nameL.Text = rewardLabel(i) end
 		local comb = btn:FindFirstChild("Combinasion")
 		if comb and comb:IsA("TextLabel") then comb.Text = rewardLabel(i) end
+	end
+
+	-- day 2 is the comeback hook: rainbow text sweep + pulsing icon pull the eye to it
+	local day2 = buttons[2]
+	if day2 then
+		local RAINBOW = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
+			ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 190, 60)),
+			ColorSequenceKeypoint.new(0.33, Color3.fromRGB(250, 250, 80)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(90, 235, 110)),
+			ColorSequenceKeypoint.new(0.67, Color3.fromRGB(80, 170, 255)),
+			ColorSequenceKeypoint.new(0.83, Color3.fromRGB(190, 110, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 70, 70)),
+		})
+		local gradients: { UIGradient } = {}
+		for _, name in { "Name", "Day" } do
+			local label = day2:FindFirstChild(name)
+			if label and label:IsA("TextLabel") then
+				local g = Instance.new("UIGradient")
+				g.Color = RAINBOW
+				g.Parent = label
+				table.insert(gradients, g)
+			end
+		end
+		-- offset sweeps -1 -> 1 both ends sit on the same red, so the loop is seamless
+		RunService.Heartbeat:Connect(function()
+			if not frame.Visible then return end
+			local t = os.clock() % 2 - 1
+			for _, g in gradients do
+				g.Offset = Vector2.new(t, 0)
+			end
+		end)
+		local icon = day2:FindFirstChild("Icon")
+		local iconScale = icon and icon:FindFirstChild("UIScale")
+		if iconScale and iconScale:IsA("UIScale") then
+			TweenService:Create(iconScale,
+				TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+				{ Scale = 1.35 }):Play()
+		end
 	end
 
 	local nextDay = bg:WaitForChild("NextDay") :: TextLabel

@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 
 local Knit = require(RS.Packages.Knit)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 local ReviveService = require(script.Parent.ReviveService)
 local Worlds = require(RS.Shared.Worlds)
@@ -12,6 +13,7 @@ local WorldService = Knit.CreateService({
 
 	Client = {
 		Entered = Knit.CreateSignal(), -- (world) fired after the portal moves you
+		Denied = Knit.CreateSignal(), -- (message) locked-portal feedback
 	},
 })
 
@@ -33,10 +35,17 @@ function WorldService:Teleport(player: Player, world: number)
 	character:PivotTo(cf)
 end
 
-local function enterWorld(player: Player, world: number)
+local function enterWorld(player: Player, world: number, unlocks: boolean?)
 	if not DataService:GetData(player) then return end
+	-- lobby portals only revisit worlds already reached; the course-end portal unlocks the next
+	if not unlocks and world > DataService:GetMaxWorld(player) then
+		WorldService.Client.Denied:Fire(player, "Reach the end first!")
+		AnalyticsService:LogPortalDenied(player)
+		return
+	end
+	-- the world follows the player both ways; portals travel freely between unlocked worlds
 	local changed = world ~= DataService:GetWorld(player)
-	if world > DataService:GetWorld(player) then
+	if changed then
 		DataService:SetWorld(player, world)
 	end
 	ReviveService:ResetRun(player)
@@ -46,9 +55,18 @@ local function enterWorld(player: Player, world: number)
 	end
 end
 
-local function wirePortal(portal: Instance, targetWorld: number)
+local function wirePortal(portal: Instance, targetWorld: number, unlocks: boolean?)
+	-- prefer the parts named "Portal"; portals without any wire every part
+	local parts: { BasePart } = {}
 	for _, part in portal:GetDescendants() do
-		if not (part:IsA("BasePart") and part.Name == "Portal") then continue end
+		if part:IsA("BasePart") and part.Name == "Portal" then table.insert(parts, part) end
+	end
+	if #parts == 0 then
+		for _, part in portal:GetDescendants() do
+			if part:IsA("BasePart") then table.insert(parts, part) end
+		end
+	end
+	for _, part in parts do
 		part.Touched:Connect(function(hit)
 			local character = hit.Parent
 			local player = character and Players:GetPlayerFromCharacter(character)
@@ -56,17 +74,24 @@ local function wirePortal(portal: Instance, targetWorld: number)
 			local now = os.clock()
 			if now - (lastTouch[player] or -math.huge) < TOUCH_COOLDOWN then return end
 			lastTouch[player] = now
-			enterWorld(player, targetWorld)
+			enterWorld(player, targetWorld, unlocks)
 		end)
 	end
 end
 
+
 function WorldService:KnitInit()
+	-- every portal model in a world's Map leads to the next world around (the opposite one with two)
 	for world, folder in Worlds.List() do
 		local map = folder:FindFirstChild("Map")
-		local portal = map and map:FindFirstChild("Portal")
-		if portal and world < Worlds.Count then
-			wirePortal(portal, world + 1)
+		if map then
+			local target = world % Worlds.Count + 1
+			for _, m in map:GetChildren() do
+				if m.Name:lower() == "portal" then
+					-- the portal far down the course is the progression one; lobby portals just revisit
+					wirePortal(m, target, m:GetPivot().Z > 1000)
+				end
+			end
 		end
 	end
 
@@ -92,16 +117,3 @@ function WorldService:KnitInit()
 end
 
 return WorldService
-
-
-
-
-
-
-
-
-
-
-
-
-

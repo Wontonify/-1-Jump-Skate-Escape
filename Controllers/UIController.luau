@@ -140,7 +140,8 @@ function UIController:KnitStart()
 		playLevelVFX()
 	end)
 
-	-- TopFrame banner "Level 7 > Level 8" with the jump pool underneath
+	-- TopFrame stays up for its other cards, so only the banner itself toggles
+	-- banner "Level 7 > Level 8" with the jump pool underneath
 	local topFrame = hud:WaitForChild("TopFrame")
 	local banner = topFrame:WaitForChild("LevelUpFrame")
 	local bannerLevel = banner:WaitForChild("Level") :: TextLabel
@@ -150,12 +151,12 @@ function UIController:KnitStart()
 	bannerScale.Parent = banner
 	local bannerHideAt = 0
 	local function popBanner()
-		topFrame.Visible = true
+		banner.Visible = true
 		bannerScale.Scale = 0.65
 		TweenService:Create(bannerScale, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 		bannerHideAt = os.clock() + 2.5
 		task.delay(2.5, function()
-			if os.clock() >= bannerHideAt then topFrame.Visible = false end
+			if os.clock() >= bannerHideAt then banner.Visible = false end
 		end)
 	end
 	-- jump numbers always mean the full pool level jumps + bought/VIP bonus, doubled by 2x Jumps
@@ -481,6 +482,7 @@ function UIController:KnitStart()
 	Knit.GetService("ShopService").Denied:Connect(showDeny)
 	Knit.GetService("TrainService").Denied:Connect(showDeny)
 	Knit.GetService("TrailService").Denied:Connect(showDeny)
+	Knit.GetService("WorldService").Denied:Connect(showDeny)
 
 	--  green notification + sound once per eligibility, "!" badge while it lasts, and a dimmed-screen spotlight on the rebirth button so nobody misses it
 	local readySound = Instance.new("Sound")
@@ -637,7 +639,7 @@ function UIController:KnitStart()
 		local function apply()
 			local char = player.Character
 			local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-			if not humanoid then return end
+			if not humanoid then return end 
 			local target = if chosen then math.clamp(chosen, 1, maxSpeed()) else maxSpeed()
 			if humanoid.WalkSpeed ~= target then
 				applying = true

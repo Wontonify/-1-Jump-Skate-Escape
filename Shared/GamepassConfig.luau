@@ -23,6 +23,8 @@ GamepassConfig.Speed = { Id = 1943652578, Mult = 2, Price = 99 }
 GamepassConfig.DoubleJumps = { Id = 1948286841, Price = 1800 }
 
 GamepassConfig.PermanentRevive = { Id = 1949217106 }
+-- one-time revive sold by the death countdown popup
+GamepassConfig.ReviveProduct = { Id = 3708335665, Price = 9 }
 GamepassConfig.JumpProduct = { Id = 3645885179, Price = 29 }
 
 -- xp buttons on bottomframe
@@ -58,9 +60,3 @@ GamepassConfig.VIP = {
 }
 
 return GamepassConfig
-
-
-
-
-
-

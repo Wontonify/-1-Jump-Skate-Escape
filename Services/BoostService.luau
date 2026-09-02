@@ -380,7 +380,7 @@ function BoostService:KnitInit()
 	end
 
 	local function wireLaser(inst: Instance)
-		if inst:IsA("BasePart") and inst.Name == "Laser" then
+		if inst:IsA("BasePart") and (inst.Name == "Laser" or inst.Name == "SpinLaser") then
 			inst.Touched:Connect(function(hit)
 				local player, character, hrp = playerFromHit(hit)
 				if player and character and hrp then
@@ -389,7 +389,7 @@ function BoostService:KnitInit()
 						and os.clock() - (lastTeleport[player] or -math.huge) >= TELEPORT_COOLDOWN then
 						HazardService.Zap(character) -- the laser's hum slams to full volume on the victim
 					end
-					drown(player, character, hrp)
+					drown(player, character, hrp, "Laser")
 				end
 			end)
 		end

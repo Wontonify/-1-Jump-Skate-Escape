@@ -22,7 +22,8 @@ local PROFILE_TEMPLATE = {
 	Playtime = 0, -- lifetime seconds in game
 	DailyStreak = 0, -- consecutive daily rewards claimed (1-7, 0 = none yet)
 	DailyLast = 0,   -- os.time of the last daily claim
-	World = 1, -- current world; the portal at World 1's end advances it for good
+	World = 1, -- current world; follows the player through portals
+	MaxWorld = 1, -- highest world reached; the course-end portal raises it
 }
 
 local GameProfileStore = ProfileStore.New("PlayerData_v1", PROFILE_TEMPLATE)
@@ -99,6 +100,10 @@ local function onPlayerAdded(player: Player)
 		profile.Data.Power = nil
 	end
 	if profile.Data.Level < 1 then profile.Data.Level = 1 end
+	-- pre-MaxWorld saves count wherever they stand as reached
+	if (profile.Data.MaxWorld or 1) < (profile.Data.World or 1) then
+		profile.Data.MaxWorld = profile.Data.World
+	end
 	-- the equipped board must always be owned
 	if not table.find(profile.Data.OwnedBoards, profile.Data.Board) then
 		table.insert(profile.Data.OwnedBoards, profile.Data.Board)
@@ -186,7 +191,12 @@ end
 function DataService:SetWorld(player: Player, world: number)
 	local d = self:GetData(player); if not d then return end
 	d.World = world
+	d.MaxWorld = math.max(d.MaxWorld or 1, world)
 	player:SetAttribute("World", world)
+end
+
+function DataService:GetMaxWorld(player: Player): number
+	local d = self:GetData(player); return d and d.MaxWorld or 1
 end
 
 function DataService:GetBoard(player: Player): string

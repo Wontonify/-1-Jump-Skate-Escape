@@ -122,7 +122,8 @@ function ShopController:KnitStart()
 			-- the group board keeps its own authored billboard, which has no price line
 			local gui = (if entry.Group then groupTemplate else template):Clone() :: BillboardGui
 			gui.Name = entry.Asset
-			local xpLabel = gui:WaitForChild("Background"):WaitForChild("PowerLoader") :: TextLabel
+			-- both templates nest PowerLoader inside Background
+			local xpLabel = gui:FindFirstChild("PowerLoader", true) :: TextLabel
 			local price = if entry.Group then nil else gui:WaitForChild("PriceLoader") :: TextLabel
 			xpLabel.Text = "+" .. (entry.XP or 0) .. " XP"
 			-- adorn right away when the stand is already streamed in
@@ -203,7 +204,7 @@ function ShopController:KnitStart()
 				base = model:GetPivot().Position -- position only every board shares one world orientation
 				displays[model] = base
 			end
-			model:PivotTo(CFrame.new(base + Vector3.new(0, 0.6 + bob, 0)) * turn)
+			model:PivotTo(CFrame.new(base + Vector3.new(0, 1.1 + bob, 0)) * turn)
 		end
 	end)
 

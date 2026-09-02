@@ -10,9 +10,14 @@ local Worlds = require(RS.Shared.Worlds)
 
 local ReviveService = Knit.CreateService({
 	Name = "ReviveService",
+
+	Client = {
+		Offer = Knit.CreateSignal(), -- (seconds) died on the course with a checkpoint to buy back to
+	},
 })
 
 local PENDING_LIFETIME = 120
+local OFFER_SECONDS = 10
 
 local lastSafe: { [Player]: Vector3 } = {}
 local maxZ: { [Player]: number } = {}
@@ -53,6 +58,24 @@ function ReviveService:TryInstantRevive(player: Player): boolean
 	return true
 end
 
+-- the one-time product returns a dead player to the checkpoint the offer was made from
+function ReviveService:GrantRevive(player: Player): boolean
+	local entry = pending[player]
+	local pos = if entry and os.clock() - entry.t <= PENDING_LIFETIME
+		then entry.pos else checkpointPos(player)
+	pending[player] = nil
+	if not pos then return true end -- nothing to return them to, but the purchase still stands
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if character and humanoid and humanoid.Health > 0 then
+		reviveTo(character, pos)
+	else -- bought before respawning, so the respawn hook places them
+		pending[player] = { pos = pos, t = os.clock() }
+		autoRevive[player] = true
+	end
+	return true
+end
+
 local function hookCharacter(player: Player, character: Model)
 	local humanoid = character:WaitForChild("Humanoid", 10)
 	if not (humanoid and humanoid:IsA("Humanoid")) then return end
@@ -69,15 +92,24 @@ local function hookCharacter(player: Player, character: Model)
 	end
 
 	humanoid.Died:Connect(function()
-		if not PassService:OwnsPass(player, GamepassConfig.PermanentRevive.Id) then return end
 		local pos = checkpointPos(player)
 		if not pos then return end
 		pending[player] = { pos = pos, t = os.clock() }
-		autoRevive[player] = true
+		if PassService:OwnsPass(player, GamepassConfig.PermanentRevive.Id) then
+			autoRevive[player] = true
+		elseif maxZ[player] then -- past the lobby, so the checkpoint is worth paying for
+			ReviveService.Client.Offer:Fire(player, OFFER_SECONDS)
+		end
 	end)
 end
 
 function ReviveService:KnitInit()
+	if GamepassConfig.ReviveProduct.Id > 0 then
+		PassService.Products[GamepassConfig.ReviveProduct.Id] = function(player: Player)
+			return ReviveService:GrantRevive(player)
+		end
+	end
+
 	local function onPlayer(player: Player)
 		player.CharacterAdded:Connect(function(c) hookCharacter(player, c) end)
 		if player.Character then task.spawn(hookCharacter, player, player.Character) end
