@@ -35,7 +35,7 @@ type Entry = {
 	world: number,
 	finished: boolean,
 	deathConnection: RBXScriptConnection?,
-}-
+}
 
 local raceMap = Workspace:WaitForChild("Race Map")
 local startModel = raceMap:WaitForChild("Start") :: Model
