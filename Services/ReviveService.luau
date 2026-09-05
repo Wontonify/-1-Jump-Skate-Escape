@@ -92,6 +92,8 @@ local function hookCharacter(player: Player, character: Model)
 	end
 
 	humanoid.Died:Connect(function()
+		-- Race deaths return through the race flow, never through a world checkpoint.
+		if player:GetAttribute("InRace") then return end
 		local pos = checkpointPos(player)
 		if not pos then return end
 		pending[player] = { pos = pos, t = os.clock() }
@@ -155,6 +157,8 @@ function ReviveService:KnitInit()
 				local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 				if not (character and hrp and hrp:IsA("BasePart") and humanoid)
 					or humanoid.Health <= 0 then continue end
+				-- Race-map coordinates must not overwrite the player's world checkpoint.
+				if player:GetAttribute("InRace") then continue end
 				local z = hrp.Position.Z
 				if z < lobbyZ then
 					maxZ[player] = nil
